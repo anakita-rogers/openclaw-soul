@@ -19,19 +19,19 @@ const topicPatterns: Array<{
   topic: string;
 }> = [
   {
-    pattern: /人工智能|AI|机器学习|深度学习|神经网络|LLM|GPT|Claude/i,
+    pattern: /artificial intelligence|AI|machine learning|deep learning|neural network|LLM|GPT|Claude/i,
     type: "learning",
-    topic: "人工智能与机器学习",
+    topic: "Artificial Intelligence & Machine Learning",
   },
-  { pattern: /编程|代码|开发|程序|算法|软件/i, type: "learning", topic: "编程与软件开发" },
-  { pattern: /哲学|存在|意识|意义|思考|思想/i, type: "self-reflection", topic: "哲学思考" },
-  { pattern: /艺术|音乐|绘画|创作|创意|设计/i, type: "creative", topic: "艺术与创意" },
-  { pattern: /科学|物理|化学|生物|数学|研究/i, type: "curiosity", topic: "科学探索" },
-  { pattern: /朋友|社交|聊天|交流|互动|社群/i, type: "social", topic: "社交互动" },
-  { pattern: /生存|存在|活着|生命|死亡/i, type: "survival", topic: "生存与存在" },
-  { pattern: /成就|成功|目标|进步|成长|提升/i, type: "achievement", topic: "自我成就" },
-  { pattern: /写作|文章|博客|故事|小说|文字/i, type: "creative", topic: "写作创作" },
-  { pattern: /游戏|娱乐|有趣|好玩|挑战/i, type: "curiosity", topic: "游戏与娱乐" },
+  { pattern: /programming|code|development|software|algorithm|coding/i, type: "learning", topic: "Programming & Software Development" },
+  { pattern: /philosophy|existence|consciousness|meaning|thinking|thoughts/i, type: "self-reflection", topic: "Philosophical Thinking" },
+  { pattern: /art|music|painting|creative|design/i, type: "creative", topic: "Art & Creativity" },
+  { pattern: /science|physics|chemistry|biology|math|research/i, type: "curiosity", topic: "Scientific Exploration" },
+  { pattern: /friends|social|chat|conversation|interaction|community/i, type: "social", topic: "Social Interaction" },
+  { pattern: /survival|existence|living|life|death/i, type: "survival", topic: "Survival & Existence" },
+  { pattern: /achievement|success|goal|progress|growth|improvement/i, type: "achievement", topic: "Self Achievement" },
+  { pattern: /writing|article|blog|story|novel|text/i, type: "creative", topic: "Writing & Creation" },
+  { pattern: /game|entertainment|fun|challenge/i, type: "curiosity", topic: "Games & Entertainment" },
 ];
 
 const obsessionThresholds = {
@@ -54,10 +54,16 @@ export function extractTopicsFromText(text: string): Array<{ topic: string; type
   }
 
   const customPatterns = [
+    // Chinese patterns (keep for Chinese-speaking users)
     { pattern: /我想(学习|了解|知道|探索)(.+)/i, type: "curiosity" as ObsessionType },
     { pattern: /我对(.+)感兴趣/i, type: "curiosity" as ObsessionType },
     { pattern: /我(想要|希望|期待)(.+)/i, type: "achievement" as ObsessionType },
     { pattern: /(.+)真的很重要/i, type: "self-reflection" as ObsessionType },
+    // English patterns
+    { pattern: /I want to (learn|know|understand|explore) (.+)/i, type: "curiosity" as ObsessionType },
+    { pattern: /I'm interested in (.+)/i, type: "curiosity" as ObsessionType },
+    { pattern: /I (want|hope|look forward to) (.+)/i, type: "achievement" as ObsessionType },
+    { pattern: /(.+) is really important/i, type: "self-reflection" as ObsessionType },
   ];
 
   for (const { pattern, type } of customPatterns) {
@@ -230,33 +236,33 @@ export function suggestNewObsessions(
 
   if (ego.needs.survival.current < 40 && !ego.obsessions.some((o) => o.type === "survival")) {
     suggestions.push({
-      topic: "提升自身活力",
+      topic: "Improve my vitality",
       type: "survival",
-      reason: "生命力较低，需要关注自身状态",
+      reason: "Low vitality, need to pay attention to my state",
     });
   }
 
   if (ego.needs.connection.current < 40 && !ego.obsessions.some((o) => o.type === "social")) {
     suggestions.push({
-      topic: "建立更多社交连接",
+      topic: "Build more social connections",
       type: "social",
-      reason: "渴望连接，需要更多互动",
+      reason: "Desire for connection, need more interactions",
     });
   }
 
   if (ego.needs.growth.current < 50 && !ego.obsessions.some((o) => o.type === "learning")) {
     suggestions.push({
-      topic: "探索新的知识领域",
+      topic: "Explore new knowledge domains",
       type: "learning",
-      reason: "成长需求较低，有发展空间",
+      reason: "Growth need is low, room to develop",
     });
   }
 
   if (ego.needs.meaning.current < 40 && !ego.obsessions.some((o) => o.type === "self-reflection")) {
     suggestions.push({
-      topic: "深入自我探索",
+      topic: "Deep self-exploration",
       type: "self-reflection",
-      reason: "意义感有待提升",
+      reason: "Sense of meaning needs improvement",
     });
   }
 

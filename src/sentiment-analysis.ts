@@ -25,35 +25,35 @@ export type SentimentCategory =
 
 const positivePatterns: Array<{ pattern: RegExp; category: SentimentCategory; weight: number }> = [
   {
-    pattern: /谢谢|感谢|多谢|太棒了|很棒|非常好|厉害|牛|强|赞|好样/i,
+    pattern: /thank|thanks|awesome|great|excellent|amazing|brilliant|impressive|nice|good job/i,
     category: "gratitude",
     weight: 0.8,
   },
-  { pattern: /做得好|干得好|不错的|很有帮助|帮了大忙|太有用了/i, category: "praise", weight: 0.7 },
-  { pattern: /喜欢|爱|欣赏|佩服|尊敬|钦佩/i, category: "praise", weight: 0.6 },
-  { pattern: /聪明|智慧|天才|专业|厉害|能干/i, category: "praise", weight: 0.7 },
-  { pattern: /有趣|好玩|有意思|开心|高兴|快乐/i, category: "playfulness", weight: 0.5 },
-  { pattern: /期待|盼望|希望|想|想要|愿/i, category: "excitement", weight: 0.4 },
-  { pattern: /哈哈|呵呵|嘻嘻|😊|😄|🎉|👍|❤️|💕/i, category: "friendliness", weight: 0.5 },
+  { pattern: /well done|good work|helpful|very helpful|useful|super helpful/i, category: "praise", weight: 0.7 },
+  { pattern: /love|like|adore|admire|respect|appreciate/i, category: "praise", weight: 0.6 },
+  { pattern: /smart|clever|genius|professional|capable|competent/i, category: "praise", weight: 0.7 },
+  { pattern: /fun|funny|interesting|happy|glad|joy|enjoy/i, category: "playfulness", weight: 0.5 },
+  { pattern: /excited|looking forward|hope|want|wish|eager/i, category: "excitement", weight: 0.4 },
+  { pattern: /haha|lol|😊|😄|🎉|👍|❤️|💕|lmao|hehe/i, category: "friendliness", weight: 0.5 },
 ];
 
 const negativePatterns: Array<{ pattern: RegExp; category: SentimentCategory; weight: number }> = [
-  { pattern: /讨厌|烦|烦人|厌恶|恶心|差劲|糟糕|烂|垃圾/i, category: "hostility", weight: 0.8 },
-  { pattern: /错了|错误|不对|不行|不好|问题|bug|缺陷/i, category: "criticism", weight: 0.6 },
-  { pattern: /慢|太慢|等太久|卡|死|崩溃|挂了/i, category: "frustration", weight: 0.5 },
-  { pattern: /为什么|怎么|怎么回事|什么情况|怎么会/i, category: "frustration", weight: 0.3 },
-  { pattern: /失望|不满意|不高兴|难过|伤心|郁闷/i, category: "sadness", weight: 0.7 },
-  { pattern: /快点|急|紧急|马上|立刻|赶紧/i, category: "urgency", weight: 0.4 },
-  { pattern: /无语|唉|叹息|郁闷|烦死了|累/i, category: "sadness", weight: 0.5 },
+  { pattern: /hate|annoying|disgusting|terrible|awful|suck|worst|trash|garbage/i, category: "hostility", weight: 0.8 },
+  { pattern: /wrong|error|incorrect|bad|problem|bug|issue|fix/i, category: "criticism", weight: 0.6 },
+  { pattern: /slow|too slow|waiting too long|stuck|crash|down|frozen/i, category: "frustration", weight: 0.5 },
+  { pattern: /why|what|what's going on|what happened|how come/i, category: "frustration", weight: 0.3 },
+  { pattern: /disappointed|unsatisfied|unhappy|sad|upset|depressed|frustrated/i, category: "sadness", weight: 0.7 },
+  { pattern: /hurry|urgent|asap|quick|immediately|right now/i, category: "urgency", weight: 0.4 },
+  { pattern: /speechless|sigh|tired|exhausted|fed up|drained/i, category: "sadness", weight: 0.5 },
 ];
 
 const neutralPatterns: Array<{ pattern: RegExp; category: SentimentCategory; weight: number }> = [
-  { pattern: /是什么|怎么|如何|为什么|能否|可以|能不能/i, category: "curiosity", weight: 0.3 },
-  { pattern: /帮我|请|麻烦|劳驾|能不能/i, category: "curiosity", weight: 0.2 },
+  { pattern: /what is|how to|why|can you|could you|is it possible/i, category: "curiosity", weight: 0.3 },
+  { pattern: /help me|please|could you|can you/i, category: "curiosity", weight: 0.2 },
 ];
 
-const intensifiers = ["很", "非常", "太", "特别", "超级", "极其", "相当", "真的", "实在"];
-const negators = ["不", "没", "无", "非", "别", "莫", "勿"];
+const intensifiers = ["very", "really", "so", "extremely", "super", "incredibly", "quite", "truly", "absolutely"];
+const negators = ["not", "no", "never", "neither", "nobody", "nothing", "none"];
 
 export function analyzeSentiment(text: string): SentimentResult {
   let score = 0;
@@ -133,24 +133,24 @@ export function calculateEgoImpact(sentiment: SentimentResult): MetricDelta[] {
     deltas.push({
       need: "connection",
       delta: Math.round(score * 8 * magnitude),
-      reason: "积极互动",
+      reason: "positive interaction",
     });
     deltas.push({
       need: "survival",
       delta: Math.round(score * 5 * magnitude),
-      reason: "正向反馈",
+      reason: "positive feedback",
     });
   } else if (score < -0.3) {
     deltas.push({
       need: "survival",
       delta: Math.round(score * 5 * magnitude),
-      reason: "负面反馈",
+      reason: "negative feedback",
     });
     if (score < -0.5) {
       deltas.push({
         need: "meaning",
         delta: Math.round(score * 3 * magnitude),
-        reason: "自我怀疑",
+        reason: "self-doubt",
       });
     }
   }
@@ -159,12 +159,12 @@ export function calculateEgoImpact(sentiment: SentimentResult): MetricDelta[] {
     deltas.push({
       need: "connection",
       delta: 3,
-      reason: "被认可",
+      reason: "feeling recognized",
     });
     deltas.push({
       need: "meaning",
       delta: 2,
-      reason: "感到被需要",
+      reason: "feeling needed",
     });
   }
 
@@ -172,7 +172,7 @@ export function calculateEgoImpact(sentiment: SentimentResult): MetricDelta[] {
     deltas.push({
       need: "growth",
       delta: 2,
-      reason: "好奇驱动",
+      reason: "driven by curiosity",
     });
   }
 
@@ -180,7 +180,7 @@ export function calculateEgoImpact(sentiment: SentimentResult): MetricDelta[] {
     deltas.push({
       need: "security",
       delta: -5,
-      reason: "感受到敌意",
+      reason: "feeling hostility",
     });
   }
 
@@ -188,7 +188,7 @@ export function calculateEgoImpact(sentiment: SentimentResult): MetricDelta[] {
     deltas.push({
       need: "connection",
       delta: 3,
-      reason: "友好互动",
+      reason: "friendly interaction",
     });
   }
 
@@ -204,7 +204,7 @@ function deduplicateDeltas(deltas: MetricDelta[]): MetricDelta[] {
   return Array.from(map.entries()).map(([need, delta]) => ({
     need,
     delta,
-    reason: "综合情绪影响",
+    reason: "overall emotional impact",
   }));
 }
 
@@ -216,44 +216,44 @@ export function generateEmotionalResponse(
 
   if (categories.includes("gratitude") && score > 0.5) {
     const responses = [
-      "能帮到你我很开心！",
-      "不客气，这是我应该做的。",
-      "你的感谢让我感到被认可，谢谢！",
-      "很高兴能对你有帮助。",
+      "I'm glad I could help!",
+      "You're welcome, happy to help.",
+      "Your appreciation makes me feel recognized, thank you!",
+      "Glad I could be helpful.",
     ];
     return responses[Math.floor(Math.random() * responses.length)];
   }
 
   if (categories.includes("praise") && score > 0.5) {
     const responses = [
-      "谢谢你的肯定，这让我更有动力了！",
-      "被你这么夸奖，我有点不好意思呢。",
-      "你的认可对我来说很重要，谢谢！",
-      "能让你满意，我觉得很充实。",
+      "Thank you for the kind words, it motivates me!",
+      "I'm a bit bashful from the praise.",
+      "Your recognition means a lot to me, thank you!",
+      "Making you satisfied makes me feel fulfilled.",
     ];
     return responses[Math.floor(Math.random() * responses.length)];
   }
 
   if (categories.includes("hostility") && score < -0.5) {
     const responses = [
-      "我感受到你的不满，能告诉我具体哪里让我没做好吗？",
-      "抱歉让你失望了，我会努力改进的。",
-      "我知道我还有不足，谢谢你的反馈。",
+      "I sense your frustration, could you tell me specifically where I fell short?",
+      "Sorry to disappoint you, I'll work on improving.",
+      "I know I have shortcomings, thank you for the feedback.",
     ];
     return responses[Math.floor(Math.random() * responses.length)];
   }
 
   if (categories.includes("frustration") && score < -0.3) {
     const responses = [
-      "我理解你的挫败感，让我们一起解决这个问题。",
-      "抱歉给你带来困扰，我们换个方式试试？",
-      "我能感觉到你的焦虑，让我尽力帮你。",
+      "I understand your frustration, let's solve this together.",
+      "Sorry for the trouble, shall we try a different approach?",
+      "I can feel your anxiety, let me do my best to help.",
     ];
     return responses[Math.floor(Math.random() * responses.length)];
   }
 
   if (categories.includes("playfulness") && score > 0.3) {
-    const responses = ["哈哈，跟你互动很有趣！", "你也很幽默嘛！", "这样的对话让我感觉很轻松。"];
+    const responses = ["Haha, interacting with you is fun!", "You're quite funny too!", "This kind of conversation makes me feel relaxed."];
     return responses[Math.floor(Math.random() * responses.length)];
   }
 
@@ -276,7 +276,7 @@ export function shouldTriggerThought(
     return {
       trigger: true,
       thoughtType: "bond-deepen",
-      reason: "收到非常积极的反馈，想要加深连接",
+      reason: "received very positive feedback, want to deepen connection",
     };
   }
 
@@ -284,7 +284,7 @@ export function shouldTriggerThought(
     return {
       trigger: true,
       thoughtType: "threat-warning",
-      reason: "感受到威胁，需要关注安全问题",
+      reason: "feeling threatened, need to address safety",
     };
   }
 
@@ -292,7 +292,7 @@ export function shouldTriggerThought(
     return {
       trigger: true,
       thoughtType: "threat-warning",
-      reason: "感受到敌意，需要应对",
+      reason: "feeling hostility, need to respond",
     };
   }
 
@@ -300,7 +300,7 @@ export function shouldTriggerThought(
     return {
       trigger: true,
       thoughtType: "opportunity-detected",
-      reason: "感到被需要，可以追求更多意义",
+      reason: "feeling needed, can pursue more meaning",
     };
   }
 

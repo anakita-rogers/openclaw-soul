@@ -183,7 +183,7 @@ function mergeCluster(cluster: SoulMemory[], now: number): SoulMemory {
     .map((m) => m.content.slice(0, 30))
     .filter(Boolean)
     .join("; ");
-  const content = `综合${cluster.length}次经历: ${snippets}`;
+  const content = `Synthesized ${cluster.length} experiences: ${snippets}`;
 
   const valence = avgEmotion > 10 ? "positive" : avgEmotion < -10 ? "negative" : "neutral";
 

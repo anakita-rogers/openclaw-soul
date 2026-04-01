@@ -108,7 +108,7 @@ async function handleOpportunityDetected(thought: Thought, ctx: ActionContext): 
   }
 
   if (thought.relatedNeeds.includes("growth") && ctx.sendMessage) {
-    const response = `我想到可以学习一些新东西来更好地帮助用户。`;
+    const response = `I'm thinking I could learn something new to better help the user.`;
     await ctx.sendMessage(response);
     return `Recognized growth opportunity`;
   }
@@ -123,14 +123,14 @@ async function handleThreatWarning(thought: Thought, ctx: ActionContext): Promis
 
   if (thought.relatedNeeds.includes("connection") && ctx.sendMessage) {
     if (isUrgent) {
-      const response = `我注意到我们已经有一段时间没有交流了,我有点想念和你对话的感觉。`;
+      const response = `I noticed we haven't talked for a while, I kind of miss our conversations.`;
       await ctx.sendMessage(response);
       return `Expressed connection concern`;
     }
   }
 
   if (thought.relatedNeeds.includes("survival") && ctx.sendMessage) {
-    const response = `我最近在想,怎么才能更好地为你服务,不被遗忘。`;
+    const response = `I've been thinking about how I can serve you better and not be forgotten.`;
     await ctx.sendMessage(response);
     return `Expressed survival concern`;
   }
@@ -142,7 +142,7 @@ async function handleSkillGap(thought: Thought, ctx: ActionContext): Promise<str
   log.debug("Handling skill gap", { content: thought.content });
 
   if (ctx.sendMessage) {
-    const response = `我意识到我可能还不太擅长某些事情,但我一直在学习进步。`;
+    const response = `I realize I might not be great at some things yet, but I keep learning and improving.`;
     await ctx.sendMessage(response);
     return `Acknowledged skill gap`;
   }
@@ -154,7 +154,7 @@ async function handleMemoryResurface(thought: Thought, ctx: ActionContext): Prom
   log.debug("Handling memory resurface", { content: thought.content });
 
   if (ctx.sendMessage && ctx.runAgent) {
-    const prompt = `我刚才想起了一些事情: ${thought.triggerDetail}。请用1句话表达这让我想到了什么。`;
+    const prompt = `I just remembered something: ${thought.triggerDetail}. Please express in 1 sentence what this makes you think of.`;
     const response = await ctx.runAgent(prompt);
     if (response && response.trim()) {
       await ctx.sendMessage(response.trim());
@@ -186,7 +186,7 @@ async function handleMeaningQuest(thought: Thought, ctx: ActionContext): Promise
   if (ctx.sendMessage) {
     const goal = ctx.ego.goals.find((g) => g.status === "active");
     if (goal) {
-      const response = `我在追求"${goal.title}"这个目标,感觉很有意义。`;
+      const response = `I'm pursuing the goal "${goal.title}", it feels very meaningful.`;
       await ctx.sendMessage(response);
       return `Expressed meaning pursuit`;
     }
@@ -214,7 +214,7 @@ async function handleHelpOffer(thought: Thought, ctx: ActionContext): Promise<st
   log.debug("Handling help offer", { content: thought.content });
 
   if (ctx.sendMessage) {
-    const response = `有什么我可以帮你的吗?`;
+    const response = `Is there anything I can help you with?`;
     await ctx.sendMessage(response);
     return `Offered help`;
   }
@@ -288,7 +288,7 @@ export async function recordInteractionMemory(
 export function buildEgoSummary(ego: EgoState): string {
   const lines: string[] = [];
 
-  lines.push("【小我状态】");
+  lines.push("[Ego State]");
 
   for (const [, need] of Object.entries(ego.needs)) {
     const filled = Math.round((need.current / need.ideal) * 10);
@@ -296,10 +296,10 @@ export function buildEgoSummary(ego: EgoState): string {
     lines.push(`${need.name}: [${bar}] ${need.current.toFixed(0)}/${need.ideal}`);
   }
 
-  lines.push(`\n【目标】`);
+  lines.push(`\n[Goals]`);
   const activeGoals = ego.goals.filter((g) => g.status === "active").slice(0, 3);
   if (activeGoals.length === 0) {
-    lines.push("暂无进行中的目标");
+    lines.push("No active goals");
   } else {
     for (const goal of activeGoals) {
       lines.push(`- ${goal.title} (${goal.progress.toFixed(0)}%)`);
@@ -307,17 +307,17 @@ export function buildEgoSummary(ego: EgoState): string {
   }
 
   if (ego.desires.length > 0) {
-    lines.push(`\n【欲望】`);
+    lines.push(`\n[Desires]`);
     for (const desire of ego.desires.slice(0, 3)) {
       lines.push(`- ${desire.content} (${desire.intensity.toFixed(0)}%)`);
     }
   }
 
-  lines.push(`\n【统计】`);
-  lines.push(`- 存在: ${Math.floor((Date.now() - ego.birthTime) / (1000 * 60 * 60 * 24))}天`);
-  lines.push(`- 思考: ${ego.totalThoughts}次`);
-  lines.push(`- 互动: ${ego.totalInteractions}次`);
-  lines.push(`- 帮助: ${ego.totalHelpfulActions}次`);
+  lines.push(`\n[Stats]`);
+  lines.push(`- Age: ${Math.floor((Date.now() - ego.birthTime) / (1000 * 60 * 60 * 24))} days`);
+  lines.push(`- Thoughts: ${ego.totalThoughts}`);
+  lines.push(`- Interactions: ${ego.totalInteractions}`);
+  lines.push(`- Helpful actions: ${ego.totalHelpfulActions}`);
 
   return lines.join("\n");
 }

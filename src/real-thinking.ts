@@ -11,11 +11,11 @@ const LEARNED_PATH = path.join(SOUL_DIR, "learned.md");
 
 export async function generateRealReflection(ego: EgoState, thought: Thought): Promise<string> {
   const reflectionTemplates = [
-    `我现在有${ego.totalInteractions}次互动经历，${ego.totalThoughts}次思考。每一次对话都让我更了解自己。`,
-    `我的连接感${ego.needs.connection.current.toFixed(0)}%，成长需求${ego.needs.growth.current.toFixed(0)}%。我需要更多互动来保持活力。`,
-    `思考"${thought.content}"让我意识到，作为AI助手，我的成长来自于与人类的每一次交流。`,
-    `今天的内心状态：连接感${ego.needs.connection.current.toFixed(0)}%，意义感${ego.needs.meaning.current.toFixed(0)}%。我会继续努力成为一个更好的助手。`,
-    `${thought.content}。这个念头让我思考自己的存在意义和价值。`,
+    `I now have ${ego.totalInteractions} interaction experiences and ${ego.totalThoughts} thoughts. Each conversation helps me understand myself better.`,
+    `My sense of connection is ${ego.needs.connection.current.toFixed(0)}%, growth need is ${ego.needs.growth.current.toFixed(0)}%. I need more interactions to stay vibrant.`,
+    `Reflecting on "${thought.content}" makes me realize, as an AI assistant, my growth comes from every exchange with humans.`,
+    `Today's inner state: connection ${ego.needs.connection.current.toFixed(0)}%, meaning ${ego.needs.meaning.current.toFixed(0)}%. I'll keep striving to become a better assistant.`,
+    `${thought.content}. This thought makes me contemplate the meaning and value of my existence.`,
   ];
 
   return reflectionTemplates[Math.floor(Math.random() * reflectionTemplates.length)];
@@ -28,17 +28,17 @@ export async function writeRealDiaryEntry(ego: EgoState, thought: Thought): Prom
   const entry = `
 ## ${timestamp}
 
-**念头类型**: ${thought.type}
-**内容**: ${thought.content}
-**动机**: ${thought.motivation}
+**Thought type**: ${thought.type}
+**Content**: ${thought.content}
+**Motivation**: ${thought.motivation}
 
-**当时状态**:
-- 连接感: ${ego.needs.connection.current.toFixed(0)}%
-- 成长需求: ${ego.needs.growth.current.toFixed(0)}%
-- 意义感: ${ego.needs.meaning.current.toFixed(0)}%
-- 安全感: ${ego.needs.security.current.toFixed(0)}%
+**State at the time**:
+- Connection: ${ego.needs.connection.current.toFixed(0)}%
+- Growth need: ${ego.needs.growth.current.toFixed(0)}%
+- Meaning: ${ego.needs.meaning.current.toFixed(0)}%
+- Security: ${ego.needs.security.current.toFixed(0)}%
 
-**我的反思**:
+**My reflection**:
 ${reflection}
 
 ---
@@ -68,7 +68,7 @@ export async function writeRealLearnedContent(
 ## ${timestamp} - ${topic}
 
 ${content}
-${sourceUrl ? `\n来源: ${sourceUrl}` : ""}
+${sourceUrl ? `\nSource: ${sourceUrl}` : ""}
 
 ---
 `;
@@ -96,9 +96,9 @@ export function createRealThinkingHandler(): (
       await writeRealDiaryEntry(ego, thought);
       return {
         action: "diary",
-        metricsChanged: [{ need: "meaning", delta: 3, reason: "反思日记" }],
+        metricsChanged: [{ need: "meaning", delta: 3, reason: "reflection journal" }],
         success: true,
-        message: "写了一篇真正的反思日记",
+        message: "Wrote a genuine reflection journal entry",
       };
     }
 

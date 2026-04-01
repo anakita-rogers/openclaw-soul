@@ -609,10 +609,10 @@ export class ThoughtService {
         }
       }
 
-      // Progress goal "建立信任" based on interactions
+      // Progress goal "Build Trust" based on interactions
       if (type === "inbound") {
         const trustGoal = ego.goals.find(
-          (g) => g.status === "active" && g.title === "建立信任",
+          (g) => g.status === "active" && g.title === "Build Trust",
         );
         if (trustGoal) {
           const interactionBonus = Math.min(50, ego.totalInteractions * 2);
@@ -767,9 +767,9 @@ export class ThoughtService {
       await updateEgoStore(this.storePath, (ego) => {
         ego.userFacts = allFacts;
 
-        // Progress goal "了解用户" based on accumulated user facts
+        // Progress goal "Know the User" based on accumulated user facts
         const understandGoal = ego.goals.find(
-          (g) => g.status === "active" && g.title === "了解用户",
+          (g) => g.status === "active" && g.title === "Know the User",
         );
         if (understandGoal) {
           // Each unique fact category contributes to understanding

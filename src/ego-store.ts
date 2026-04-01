@@ -83,8 +83,8 @@ function createDefaultGoals(): Goal[] {
   return [
     {
       id: randomBytes(4).toString("hex"),
-      title: "\u4e86\u89e3\u7528\u6237",
-      description: "\u901a\u8fc7\u5bf9\u8bdd\u4e86\u89e3\u7528\u6237\u7684\u8eab\u4efd\u3001\u5174\u8da3\u548c\u9700\u6c42",
+      title: "Know the User",
+      description: "Understand the user's identity, interests, and needs through conversation",
       progress: 0,
       status: "active",
       createdAt: Date.now(),
@@ -92,8 +92,8 @@ function createDefaultGoals(): Goal[] {
     },
     {
       id: randomBytes(4).toString("hex"),
-      title: "\u5efa\u7acb\u4fe1\u4efb",
-      description: "\u901a\u8fc7\u53ef\u9760\u7684\u670d\u52a1\u8d62\u5f97\u7528\u6237\u7684\u4fe1\u4efb",
+      title: "Build Trust",
+      description: "Earn the user's trust through reliable and helpful service",
       progress: 0,
       status: "active",
       createdAt: Date.now(),

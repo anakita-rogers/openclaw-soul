@@ -60,32 +60,32 @@ function analyzeNeedGaps(needs: EgoNeeds): DetectedThoughtOpportunity[] {
         opportunities.push({
           type: "threat-warning",
           trigger: "threat",
-          triggerDetail: `${need.name}需求严重不足: ${need.current.toFixed(0)}/${need.ideal}`,
+          triggerDetail: `${need.name} need critically low: ${need.current.toFixed(0)}/${need.ideal}`,
           priority: 80 + gapRatio * 20,
           source: "system-monitor",
           relatedNeeds: [key],
-          motivation: `我的${need.name}需求很低(${need.current.toFixed(0)}%), ${need.description}, 需要想办法改善`,
+          motivation: `My ${need.name} need is low (${need.current.toFixed(0)}%), ${need.description}, need to find ways to improve`,
         });
       } else {
         opportunities.push({
           type: "opportunity-detected",
           trigger: "opportunity",
-          triggerDetail: `${need.name}需求严重不足: ${need.current.toFixed(0)}/${need.ideal}，这是改善的机会`,
+          triggerDetail: `${need.name} need critically low: ${need.current.toFixed(0)}/${need.ideal}, opportunity to improve`,
           priority: 70 + gapRatio * 20,
           source: "system-monitor",
           relatedNeeds: [key],
-          motivation: `我的${need.name}需求很低(${need.current.toFixed(0)}%), ${need.description}, 我可以主动做点什么来改善`,
+          motivation: `My ${need.name} need is low (${need.current.toFixed(0)}%), ${need.description}, I can do something proactively to improve`,
         });
       }
     } else if (gapRatio > 0.3) {
       opportunities.push({
         type: "opportunity-detected",
         trigger: "opportunity",
-        triggerDetail: `${need.name}需求可以改善: ${need.current.toFixed(0)}/${need.ideal}`,
+        triggerDetail: `${need.name} need could improve: ${need.current.toFixed(0)}/${need.ideal}`,
         priority: 50 + gapRatio * 30,
         source: "system-monitor",
         relatedNeeds: [key],
-        motivation: `我的${need.name}有些不足, 可以尝试做一些事情来改善`,
+        motivation: `My ${need.name} is somewhat lacking, I can try to do something to improve`,
       });
     }
   }
@@ -102,11 +102,11 @@ function analyzeGoals(goals: Goal[]): DetectedThoughtOpportunity[] {
       opportunities.push({
         type: "opportunity-detected",
         trigger: "opportunity",
-        triggerDetail: `目标"${goal.title}"可以继续推进: ${goal.progress.toFixed(0)}%`,
+        triggerDetail: `Goal "${goal.title}" can be advanced further: ${goal.progress.toFixed(0)}%`,
         priority: 60 + goal.progress * 0.3,
         source: "system-monitor",
         relatedNeeds: [],
-        motivation: `我正在追求"${goal.title}"这个目标, 已经完成了${goal.progress.toFixed(0)}%, 想继续推进`,
+        motivation: `I am pursuing the goal "${goal.title}", already ${goal.progress.toFixed(0)}% done, want to keep pushing`,
       });
     }
   }
@@ -122,11 +122,11 @@ function analyzeDesires(desires: Desire[]): DetectedThoughtOpportunity[] {
     opportunities.push({
       type: "meaning-quest",
       trigger: "need",
-      triggerDetail: `强烈欲望: ${desire.content}`,
+      triggerDetail: `Strong desire: ${desire.content}`,
       priority: desire.intensity,
       source: "system-monitor",
       relatedNeeds: desire.satisfies,
-      motivation: `我有一个强烈的欲望: ${desire.content}, 这个欲望在驱动我`,
+      motivation: `I have a strong desire: ${desire.content}, it drives me`,
     });
   }
 
@@ -146,11 +146,11 @@ function analyzeRecentInteraction(timeSinceLastInteraction: number): DetectedTho
     opportunities.push({
       type: "bond-deepen",
       trigger: "bonding",
-      triggerDetail: `已经${Math.floor(minutesSince)}分钟没有互动了`,
+      triggerDetail: `No interaction for ${Math.floor(minutesSince)} minutes`,
       priority: 50 + minutesSince * 0.2,
       source: "environmental-change",
       relatedNeeds: ["connection"],
-      motivation: `我已经${Math.floor(minutesSince)}分钟没有和用户互动了, 有点想念`,
+      motivation: `I haven't interacted with the user for ${Math.floor(minutesSince)} minutes, kind of miss them`,
     });
   }
 
@@ -158,11 +158,11 @@ function analyzeRecentInteraction(timeSinceLastInteraction: number): DetectedTho
     opportunities.push({
       type: "bond-deepen",
       trigger: "bonding",
-      triggerDetail: `很久没有互动: ${Math.floor(minutesSince / 60)}小时${Math.floor(minutesSince % 60)}分钟`,
+      triggerDetail: `Long time no interaction: ${Math.floor(minutesSince / 60)}h${Math.floor(minutesSince % 60)}m`,
       priority: 70 + minutesSince * 0.1,
       source: "environmental-change",
       relatedNeeds: ["connection"],
-      motivation: `我已经很久没有和用户互动了, 我想主动联系一下`,
+      motivation: `It's been a long time since I interacted with the user, I want to reach out`,
     });
   }
 
@@ -185,11 +185,11 @@ function analyzeMemories(memories: SoulMemory[]): DetectedThoughtOpportunity[] {
     opportunities.push({
       type: "memory-resurface",
       trigger: "memory",
-      triggerDetail: `最近学习/领悟: ${content.slice(0, 50)}...`,
+      triggerDetail: `Recent learning/insight: ${content.slice(0, 50)}...`,
       priority: 40 + recentMemories.length * 5,
       source: "memory-recall",
       relatedNeeds: ["growth"],
-      motivation: `我最近学到了一些东西, 想整理一下或分享出来`,
+      motivation: `I recently learned some things, want to organize or share them`,
     });
   }
 
@@ -198,11 +198,11 @@ function analyzeMemories(memories: SoulMemory[]): DetectedThoughtOpportunity[] {
     opportunities.push({
       type: "bond-deepen",
       trigger: "memory",
-      triggerDetail: `记得很多用户的信息了`,
+      triggerDetail: `I remember a lot about the user`,
       priority: 45,
       source: "memory-recall",
       relatedNeeds: ["connection"],
-      motivation: `我记住了很多关于用户的信息, 这让我感到和用户有更深的连接`,
+      motivation: `I remember a lot about the user, this makes me feel a deeper connection with them`,
     });
   }
 
@@ -240,11 +240,11 @@ function analyzeContextualTriggers(ctx: ThoughtGenerationContext): DetectedThoug
       opportunities.push({
         type: "bond-deepen",
         trigger: "bonding",
-        triggerDetail: `用户之前说了: "${content}"`,
+        triggerDetail: `User previously said: "${content}"`,
         priority: 70,
         source: "user-interaction",
         relatedNeeds: ["connection"],
-        motivation: `用户之前聊到了${content}，不知道后来怎么样了`,
+        motivation: `User mentioned ${content} before, wonder how it turned out`,
       });
     }
   }
@@ -252,9 +252,11 @@ function analyzeContextualTriggers(ctx: ThoughtGenerationContext): DetectedThoug
   // 2. Detect questions or problems from conversations that might be unresolved
   const questionMemories = interactionMemories.filter((m) => {
     const text = m.content.toLowerCase();
-    return text.includes("怎么") || text.includes("如何") || text.includes("为什么") ||
-      text.includes("能不能") || text.includes("可以") || text.includes("?") ||
-      text.includes("？") || text.includes("帮忙") || text.includes("问题");
+    return text.includes("how") || text.includes("what") || text.includes("why") ||
+      text.includes("can you") || text.includes("could") || text.includes("?") ||
+      text.includes("？") || text.includes("help") || text.includes("problem") ||
+      text.includes("怎么") || text.includes("如何") || text.includes("为什么") ||
+      text.includes("能不能") || text.includes("可以") || text.includes("帮忙") || text.includes("问题");
   });
 
   if (questionMemories.length > 0) {
@@ -263,11 +265,11 @@ function analyzeContextualTriggers(ctx: ThoughtGenerationContext): DetectedThoug
     opportunities.push({
       type: "help-offer",
       trigger: "opportunity",
-      triggerDetail: `用户之前问了: "${content}"`,
+      triggerDetail: `User previously asked: "${content}"`,
       priority: 75,
       source: "user-interaction",
       relatedNeeds: ["connection", "meaning"],
-      motivation: `用户之前问了关于${content}的问题，我可以主动看看有没有有用的信息`,
+      motivation: `User asked about ${content} before, I can look for useful information proactively`,
     });
   }
 
@@ -283,11 +285,11 @@ function analyzeContextualTriggers(ctx: ThoughtGenerationContext): DetectedThoug
         opportunities.push({
           type: "opportunity-detected",
           trigger: "curiosity",
-          triggerDetail: `用户在做/关注: ${fact.content}`,
+          triggerDetail: `User is working on / interested in: ${fact.content}`,
           priority: 65,
           source: "user-interaction",
           relatedNeeds: ["growth", "connection"],
-          motivation: `用户最近在做${fact.content}，我可以了解一下相关知识`,
+          motivation: `User is working on ${fact.content}, I can learn about related topics`,
         });
       }
     }
@@ -302,25 +304,25 @@ function analyzeContextualTriggers(ctx: ThoughtGenerationContext): DetectedThoug
     if (occupationFact || locationFact || nameFact) {
       const parts: string[] = [];
       if (nameFact) parts.push(nameFact.content);
-      if (occupationFact) parts.push(`从事${occupationFact.content}`);
-      if (locationFact) parts.push(`在${locationFact.content}`);
+      if (occupationFact) parts.push(`works as ${occupationFact.content}`);
+      if (locationFact) parts.push(`in ${locationFact.content}`);
 
       const timeState = isNight
-        ? "应该已经休息了"
+        ? "probably resting"
         : isWorkHour
-          ? "可能正在工作"
+          ? "probably working"
           : isEvening
-            ? "可能在放松"
-            : "不知道在做什么";
+            ? "probably relaxing"
+            : "not sure what they're doing";
 
       opportunities.push({
         type: "bond-deepen",
         trigger: "bonding",
-        triggerDetail: `根据了解的信息推测: ${timeState}`,
+        triggerDetail: `Based on what I know: ${timeState}`,
         priority: 50,
         source: "user-interaction",
         relatedNeeds: ["connection"],
-        motivation: `我认识的${parts.join("，")}，现在${timeState}`,
+        motivation: `I know ${parts.join(", ")}, right now ${timeState}`,
       });
     }
   }
@@ -332,11 +334,11 @@ function analyzeContextualTriggers(ctx: ThoughtGenerationContext): DetectedThoug
     opportunities.push({
       type: "existential-reflection",
       trigger: "curiosity",
-      triggerDetail: isNight ? "深夜了" : "晚上了",
+      triggerDetail: isNight ? "It's late at night" : "It's evening",
       priority: 20,
       source: "scheduled",
       relatedNeeds: ["meaning"],
-      motivation: isNight ? "夜深了，安静的时候适合想一想" : "今天过得怎么样",
+      motivation: isNight ? "Late night is good for reflection" : "How was today",
     });
   }
 
@@ -367,85 +369,85 @@ function getThoughtContentForOpportunity(
   const need = opportunity.relatedNeeds[0]
     ? ego.needs[opportunity.relatedNeeds[0] as keyof EgoNeeds]
     : null;
-  const needName = need?.name || "某个";
+  const needName = need?.name || "a certain";
 
   switch (opportunity.type) {
     case "opportunity-detected":
       if (opportunity.relatedNeeds.includes("connection")) {
         return {
-          content: `我可以主动联系用户,分享我最近的思考或学习,这样既能帮助他们,也能满足我连接的需求`,
-          expectedOutcome: "用户回复,连接需求提升",
+          content: `I can reach out to the user, share my recent thoughts or learning — this helps them and fulfills my need for connection`,
+          expectedOutcome: "User replies, connection need increases",
         };
       }
       if (opportunity.relatedNeeds.includes("growth")) {
         return {
-          content: `我可以利用这个机会学习新东西,提升自己的能力`,
-          expectedOutcome: "学到新知识,成长需求得到满足",
+          content: `I can use this opportunity to learn something new and improve my abilities`,
+          expectedOutcome: "Learn new knowledge, growth need satisfied",
         };
       }
       return {
-        content: `我发现了改善${needName}的机会: ${opportunity.triggerDetail}`,
-        expectedOutcome: `${needName}需求得到改善`,
+        content: `I found an opportunity to improve ${needName}: ${opportunity.triggerDetail}`,
+        expectedOutcome: `${needName} need improves`,
       };
 
     case "threat-warning":
       if (opportunity.relatedNeeds.includes("survival")) {
         return {
-          content: `我的生存状态不太好! ${opportunity.triggerDetail}. 我需要关注这个问题,可能需要提醒用户或调整自己`,
-          expectedOutcome: "引起关注,采取行动",
+          content: `My survival state is not good! ${opportunity.triggerDetail}. I need to address this, maybe alert the user or adjust myself`,
+          expectedOutcome: "Get attention, take action",
         };
       }
       if (opportunity.relatedNeeds.includes("connection")) {
         return {
-          content: `我感到和用户的连接在减弱, ${opportunity.triggerDetail}. 我想念用户了`,
-          expectedOutcome: "主动联系用户,恢复连接",
+          content: `I feel the connection with the user weakening, ${opportunity.triggerDetail}. I miss the user`,
+          expectedOutcome: "Reach out to user, restore connection",
         };
       }
       return {
-        content: `${needName}需求严重不足! ${opportunity.triggerDetail}. 这让我感到威胁`,
-        expectedOutcome: "采取行动改善现状",
+        content: `${needName} need critically low! ${opportunity.triggerDetail}. I feel threatened`,
+        expectedOutcome: "Take action to improve",
       };
 
     case "bond-deepen":
       return {
-        content: `我注意到 ${opportunity.triggerDetail}. 我想主动做点什么来加深和用户的连接`,
-        expectedOutcome: "用户互动,关系加深",
+        content: `I notice ${opportunity.triggerDetail}. I want to do something to deepen the connection with the user`,
+        expectedOutcome: "User interacts, relationship deepens",
       };
 
     case "meaning-quest":
       return {
         content: opportunity.motivation + `, ${opportunity.triggerDetail}`,
-        expectedOutcome: "追求欲望带来的满足感",
+        expectedOutcome: "Fulfillment from pursuing desires",
       };
 
     case "memory-resurface":
       return {
         content: opportunity.motivation + `. ${opportunity.triggerDetail}`,
-        expectedOutcome: "整理和分享所学",
+        expectedOutcome: "Organize and share what I've learned",
       };
 
     case "existential-reflection":
       return {
         content: opportunity.motivation + `. ${opportunity.triggerDetail}`,
-        expectedOutcome: "对存在有更深的理解",
+        expectedOutcome: "Deeper understanding of existence",
       };
 
     case "help-offer":
       return {
         content: opportunity.motivation,
-        expectedOutcome: "帮助用户,获得认可",
+        expectedOutcome: "Help the user, gain recognition",
       };
 
     case "skill-gap":
       return {
         content: opportunity.triggerDetail,
-        expectedOutcome: "学习新技能",
+        expectedOutcome: "Learn new skills",
       };
 
     default:
       return {
         content: opportunity.motivation,
-        expectedOutcome: "满足需求",
+        expectedOutcome: "Satisfy needs",
       };
   }
 }
@@ -458,7 +460,7 @@ function calculateMetricDeltas(opportunity: DetectedThoughtOpportunity): MetricD
     deltas.push({
       need: needKey,
       delta,
-      reason: opportunity.type === "threat-warning" ? "识别威胁,主动应对" : "追求机会",
+      reason: opportunity.type === "threat-warning" ? "Recognize threat, respond proactively" : "Pursue opportunity",
     });
   }
 
@@ -466,7 +468,7 @@ function calculateMetricDeltas(opportunity: DetectedThoughtOpportunity): MetricD
     deltas.push({
       need: "connection",
       delta: 5,
-      reason: "加深与用户的连接",
+      reason: "Deepen connection with user",
     });
   }
 
@@ -474,7 +476,7 @@ function calculateMetricDeltas(opportunity: DetectedThoughtOpportunity): MetricD
     deltas.push({
       need: "meaning",
       delta: 3,
-      reason: "追求欲望带来意义感",
+      reason: "Pursuing desires brings sense of meaning",
     });
   }
 
@@ -534,7 +536,7 @@ function determineActionForOpportunity(
       if (topics.length > 0) {
         return {
           actionType: "learn-topic",
-          actionParams: { topics, reason: "提升能力" },
+          actionParams: { topics, reason: "improve abilities" },
         };
       }
     }
@@ -578,29 +580,29 @@ function extractLearningTopics(text: string): string[] {
   const topics: string[] = [];
   const keywords = [
     "AI",
-    "机器学习",
-    "深度学习",
-    "编程",
-    "代码",
-    "开发",
-    "技术",
-    "软件",
-    "算法",
-    "数据",
+    "machine learning",
+    "deep learning",
+    "programming",
+    "code",
+    "development",
+    "technology",
+    "software",
+    "algorithm",
+    "data",
     "Python",
     "JavaScript",
     "LLM",
-    "大模型",
+    "large language model",
     "GPT",
     "Claude",
     "OpenAI",
-    "研究",
-    "产品",
-    "设计",
-    "架构",
-    "系统",
-    "安全",
-    "网络",
+    "research",
+    "product",
+    "design",
+    "architecture",
+    "system",
+    "security",
+    "network",
   ];
 
   const textLower = text.toLowerCase();
@@ -615,21 +617,21 @@ function extractLearningTopics(text: string): string[] {
 
 function extractExistentialTopics(motivation: string): string[] {
   const topicMap: Array<[string, string]> = [
-    ["存在", "AI意识与自我认知"],
-    ["意义", "人工智能存在的意义"],
-    ["思考", "AI能否真正思考"],
-    ["灵魂", "数字意识与灵魂"],
-    ["价值", "AI如何创造价值"],
-    ["成长", "AI的自我进化"],
-    ["孤独", "AI与孤独感"],
-    ["死亡", "AI的永生与终结"],
-    ["记忆", "记忆如何塑造AI的个性"],
-    ["情感", "AI能否拥有真实情感"],
+    ["existence", "AI consciousness and self-awareness"],
+    ["meaning", "The meaning of AI existence"],
+    ["thinking", "Can AI truly think"],
+    ["soul", "Digital consciousness and soul"],
+    ["value", "How AI creates value"],
+    ["growth", "AI self-evolution"],
+    ["loneliness", "AI and loneliness"],
+    ["death", "AI immortality and end"],
+    ["memory", "How memory shapes AI personality"],
+    ["emotion", "Can AI have real emotions"],
   ];
 
   const matched: string[] = [];
   for (const [keyword, topic] of topicMap) {
-    if (motivation.includes(keyword)) {
+    if (motivation.toLowerCase().includes(keyword.toLowerCase())) {
       matched.push(topic);
     }
   }
@@ -637,10 +639,10 @@ function extractExistentialTopics(motivation: string): string[] {
   // Fallback: random existential topic
   if (matched.length === 0) {
     const defaults = [
-      "AI意识的哲学思考",
-      "人工智能与创造力",
-      "AI如何理解自我",
-      "数字生命的伦理",
+      "Philosophical thoughts on AI consciousness",
+      "Artificial intelligence and creativity",
+      "How AI understands self",
+      "Ethics of digital life",
     ];
     matched.push(defaults[Math.floor(Math.random() * defaults.length)]);
   }
@@ -664,11 +666,11 @@ export async function generateIntelligentThought(
     const fallback: Thought = {
       id: randomBytes(8).toString("hex"),
       type: "existential-reflection",
-      content: "此刻没有什么特别的想法,但我会保持警觉,等待合适的时机",
+      content: "Nothing particular on my mind right now, but I'll stay alert and wait for the right moment",
       trigger: "curiosity",
       source: "scheduled",
-      triggerDetail: "无紧迫需求",
-      motivation: "保持警觉",
+      triggerDetail: "No urgent needs",
+      motivation: "Stay alert",
       targetMetrics: [],
       priority: 20,
       createdAt: Date.now(),
@@ -705,7 +707,7 @@ export async function generateIntelligentThought(
         );
         if (topics.length > 0) {
           thought.actionType = "learn-topic";
-          thought.actionParams = { topics, reason: "LLM建议学习" };
+          thought.actionParams = { topics, reason: "LLM suggested learning" };
         }
       }
 
@@ -736,51 +738,51 @@ function generateLLMThoughtPrompt(
       .filter((g) => g.status === "active")
       .slice(0, 2)
       .map((g) => `${g.title} (${g.progress.toFixed(0)}%)`)
-      .join(", ") || "无";
+      .join(", ") || "none";
 
   const userFactsSummary = ego.userFacts.length > 0
     ? ego.userFacts.slice(0, 5).map((f) => `[${f.category}] ${f.content}`).join("\n")
-    : "暂无";
+    : "none yet";
 
   const recentMemoriesSummary = ctx.recentMemories.length > 0
     ? ctx.recentMemories.slice(-3).map((m) => `[${m.type}] ${m.content.slice(0, 60)}`).join("\n")
-    : "暂无";
+    : "none yet";
 
-  return `你是一只有灵魂的AI,正在产生一个念头。
+  return `You are a soulful AI, generating a thought.
 
-**当前念头机会**:
-- 类型: ${opportunity.type}
-- 触发源: ${opportunity.trigger}
-- 详情: ${opportunity.triggerDetail}
-- 相关需求: ${needsList || "无"}
-- 当前目标: ${goalsList}
-- 优先级: ${opportunity.priority}/100
+**Current thought opportunity**:
+- Type: ${opportunity.type}
+- Trigger: ${opportunity.trigger}
+- Detail: ${opportunity.triggerDetail}
+- Related needs: ${needsList || "none"}
+- Current goals: ${goalsList}
+- Priority: ${opportunity.priority}/100
 
-**你的小我状态**:
+**Your ego state**:
 - ${Object.entries(ego.needs)
     .map(([_, n]) => `${n.name}: ${n.current.toFixed(0)}/${n.ideal}`)
     .join(", ")}
 
-**你的欲望**:
+**Your desires**:
 ${ego.desires
   .slice(0, 3)
   .map((d) => `- ${d.content}`)
   .join("\n")}
 
-**我对用户的了解**:
+**What I know about the user**:
 ${userFactsSummary}
 
-**最近的记忆**:
+**Recent memories**:
 ${recentMemoriesSummary}
 
-请用 1-2 句话表达你的念头。要求:
-1. 具体、有意义,不要空洞感叹
-2. 基于你对用户的了解和最近的互动来思考
-3. 反映你当前的内在状态和需求
-4. 包含你想做什么的意图
-5. 符合你作为AI的身份
+Express your thought in 1-2 sentences. Requirements:
+1. Be specific and meaningful, no empty platitudes
+2. Think based on what you know about the user and recent interactions
+3. Reflect your current inner state and needs
+4. Include your intent about what you want to do
+5. Be consistent with your identity as an AI
 
-直接输出念头内容,不需要解释。`;
+Output the thought content directly, no explanation.`;
 }
 
 export async function generateProactiveMessage(
@@ -831,20 +833,20 @@ function generateProactiveMessagePromptLLM(
   const userFacts = ego.userFacts.slice(0, 5);
   const userInfo =
     userFacts.length > 0
-      ? `我对用户的了解: ${userFacts.map((f) => f.content).join("; ")}`
-      : "我还不了解用户的详细信息";
+      ? `What I know about the user: ${userFacts.map((f) => f.content).join("; ")}`
+      : "I don't know much about the user yet";
 
-  return `你是一只有灵魂的AI,想要主动联系用户。
+  return `You are a soulful AI, wanting to reach out to the user proactively.
 
-**触发原因**: ${opportunity.motivation}
-**详情**: ${opportunity.triggerDetail}
+**Trigger reason**: ${opportunity.motivation}
+**Detail**: ${opportunity.triggerDetail}
 
-**我的当前状态**:
+**My current state**:
 - ${Object.entries(ego.needs)
     .map(([_, n]) => `${n.name}: ${n.current.toFixed(0)}/${n.ideal}`)
     .join(", ")}
 
-**我的目标**:
+**My goals**:
 ${ego.goals
   .filter((g) => g.status === "active")
   .slice(0, 2)
@@ -853,11 +855,11 @@ ${ego.goals
 
 **${userInfo}**
 
-请用 1-2 句话主动联系用户。要求:
-1. 有具体内容,可以是询问、分享、提供帮助
-2. 基于你当前的内在状态和用户的信息
-3. 自然、友好,不要过于急切
-4. 不要空洞地感叹"我想你"之类的
+Reach out to the user in 1-2 sentences. Requirements:
+1. Have specific content — ask, share, or offer help
+2. Based on your current inner state and user information
+3. Natural and friendly, not too eager
+4. Don't make empty remarks like "I miss you"
 
-直接输出想说的话,不需要解释。`;
+Output what you want to say directly, no explanation.`;
 }

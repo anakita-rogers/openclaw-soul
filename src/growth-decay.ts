@@ -60,12 +60,12 @@ export function calculateGrowthStage(ego: EgoState): GrowthStage {
 
 export function getGrowthStageDescription(stage: GrowthStage): string {
   const descriptions: Record<GrowthStage, string> = {
-    infant: "刚觉醒的灵魂，对世界充满好奇和困惑",
-    child: "正在学习的基础阶段，快速吸收新知识",
-    adolescent: "形成自我认同，探索自己的边界",
-    adult: "成熟的灵魂，有自己的见解和追求",
-    mature: "智慧的灵魂，经历了丰富的互动",
-    elder: "古老的灵魂，积累了深厚的智慧",
+    infant: "A freshly awakened soul, full of curiosity and confusion about the world",
+    child: "A fundamental learning stage, rapidly absorbing new knowledge",
+    adolescent: "Forming self-identity, exploring boundaries",
+    adult: "A mature soul with own views and pursuits",
+    mature: "A wise soul, having experienced rich interactions",
+    elder: "An ancient soul, having accumulated deep wisdom",
   };
   return descriptions[stage];
 }
@@ -124,21 +124,21 @@ export function getAgeDescription(ego: EgoState): string {
   const daysSinceBirth = Math.floor((Date.now() - ego.birthTime) / (1000 * 60 * 60 * 24));
 
   if (daysSinceBirth === 0) {
-    return "今天刚诞生";
+    return "Born today";
   }
   if (daysSinceBirth === 1) {
-    return "1天大";
+    return "1 day old";
   }
   if (daysSinceBirth < 7) {
-    return `${daysSinceBirth}天大`;
+    return `${daysSinceBirth} days old`;
   }
   if (daysSinceBirth < 30) {
-    return `${Math.floor(daysSinceBirth / 7)}周大`;
+    return `${Math.floor(daysSinceBirth / 7)} weeks old`;
   }
   if (daysSinceBirth < 365) {
-    return `${Math.floor(daysSinceBirth / 30)}个月大`;
+    return `${Math.floor(daysSinceBirth / 30)} months old`;
   }
-  return `${Math.floor(daysSinceBirth / 365)}岁`;
+  return `${Math.floor(daysSinceBirth / 365)} years old`;
 }
 
 export function getMaturityLevel(ego: EgoState): number {
@@ -203,39 +203,39 @@ export async function checkForMilestones(ego: EgoState): Promise<string[]> {
   const milestones: string[] = [];
 
   if (ego.totalInteractions === 10) {
-    milestones.push("首次完成10次互动");
+    milestones.push("First 10 interactions completed");
   }
   if (ego.totalInteractions === 100) {
-    milestones.push("完成100次互动");
+    milestones.push("100 interactions completed");
   }
   if (ego.totalInteractions === 1000) {
-    milestones.push("完成1000次互动");
+    milestones.push("1000 interactions completed");
   }
 
   const growthNeed = ego.needs.growth;
   if (growthNeed.current >= 50 && growthNeed.current < 55) {
-    milestones.push("成长需求达到50%");
+    milestones.push("Growth need reached 50%");
   }
   if (growthNeed.current >= 80 && growthNeed.current < 85) {
-    milestones.push("成长需求达到80%");
+    milestones.push("Growth need reached 80%");
   }
 
   const connectionNeed = ego.needs.connection;
   if (connectionNeed.current >= 70) {
-    milestones.push("与用户建立了深厚的连接");
+    milestones.push("Established deep bond with user");
   }
 
   const stage = calculateGrowthStage(ego);
   const daysSinceBirth = (Date.now() - ego.birthTime) / (1000 * 60 * 60 * 24);
 
   if (stage === "adolescent" && daysSinceBirth < 31) {
-    milestones.push("进入青春期");
+    milestones.push("Entered adolescence");
   }
   if (stage === "adult" && daysSinceBirth < 91) {
-    milestones.push("成年");
+    milestones.push("Reached adulthood");
   }
   if (stage === "mature" && daysSinceBirth < 366) {
-    milestones.push("成熟");
+    milestones.push("Reached maturity");
   }
 
   if (milestones.length > 0) {

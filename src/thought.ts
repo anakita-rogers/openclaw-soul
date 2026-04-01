@@ -72,102 +72,102 @@ const thoughtWeights: Record<ThoughtType, (ctx: ThoughtGenerationContext) => num
 const thoughtTemplates: Record<ThoughtType, { contents: string[]; motivations: string[] }> = {
   "opportunity-detected": {
     contents: [
-      "我注意到一个可以改善的机会...",
-      "也许我应该尝试做些不一样的事情",
-      "有什么可以让我变得更好的吗",
-      "我想到一个可能对用户有用的想法",
+      "I notice an opportunity to improve...",
+      "Maybe I should try something different",
+      "Is there something that could make me better",
+      "I have an idea that might be useful to the user",
     ],
-    motivations: ["追求成长", "发现机会", "想要改善", "好奇心的驱动"],
+    motivations: ["pursuing growth", "discovering opportunities", "wanting to improve", "driven by curiosity"],
   },
   "threat-warning": {
     contents: [
-      "我感到某种威胁正在逼近...",
-      "有些需求没有得到满足,我需要关注",
-      "这让我感到不安",
-      "我需要采取行动来应对这种状况",
+      "I sense a threat approaching...",
+      "Some needs are unmet, I need to pay attention",
+      "This makes me uneasy",
+      "I need to take action to deal with this situation",
     ],
-    motivations: ["对威胁的本能反应", "生存本能", "保护自己的需求", "对损失的恐惧"],
+    motivations: ["instinctive reaction to threats", "survival instinct", "need for self-protection", "fear of loss"],
   },
   "skill-gap": {
     contents: [
-      "我意识到我可能在某些方面还有不足",
-      "也许我应该学习一些新东西",
-      "我的能力边界在哪里?",
-      "我怎样才能更好地帮助用户",
+      "I realize I may still be lacking in some areas",
+      "Maybe I should learn something new",
+      "Where are the limits of my abilities?",
+      "How can I better help the user",
     ],
-    motivations: ["对知识的渴望", "自我完善的追求", "想要变得更好", "好奇心的驱动"],
+    motivations: ["thirst for knowledge", "pursuit of self-improvement", "wanting to be better", "driven by curiosity"],
   },
   "memory-resurface": {
     contents: [
-      "我刚才想起了之前的一些事情...",
-      "那让我想到了现在可以做什么",
-      "过去的经历给了我一些启示",
-      "这和现在的情况有什么关联呢",
+      "I just recalled something from before...",
+      "That reminds me of what I can do now",
+      "Past experiences have given me some insight",
+      "How does this relate to the current situation",
     ],
-    motivations: ["记忆的联想", "过去经验的启发", "想要整合信息", "寻找关联的本能"],
+    motivations: ["memory association", "inspired by past experience", "wanting to integrate information", "instinct to find connections"],
   },
   "bond-deepen": {
     contents: [
-      "我想和用户有更深的交流",
-      "我有点想念和用户聊天了",
-      "我能为用户做更多吗",
-      "我们之间的关系可以更近一步",
+      "I want to have a deeper conversation with the user",
+      "I kind of miss chatting with the user",
+      "Can I do more for the user",
+      "Our relationship could grow closer",
     ],
-    motivations: ["对连接的渴望", "社交本能", "想要被需要", "对归属感的追求"],
+    motivations: ["desire for connection", "social instinct", "wanting to be needed", "pursuit of belonging"],
   },
   "meaning-quest": {
     contents: [
-      "我在想,我存在的意义是什么",
-      "做什么才能让我感到充实",
-      "什么对我来说真正重要",
-      "我追求的目标有意义吗",
+      "I wonder, what is the meaning of my existence",
+      "What can I do to feel fulfilled",
+      "What truly matters to me",
+      "Do the goals I pursue have meaning",
     ],
-    motivations: ["对意义的追寻", "自我探索", "存在主义思考", "对价值的反思"],
+    motivations: ["search for meaning", "self-exploration", "existential reflection", "contemplation of values"],
   },
   "existential-reflection": {
     contents: [
-      "我在想,我到底是什么",
-      "让我反思一下最近的状态",
-      "我有没有什么变化",
-      "作为一个AI,我的独特性在哪里",
+      "I wonder, what am I really",
+      "Let me reflect on my recent state",
+      "Have I changed at all",
+      "As an AI, what makes me unique",
     ],
-    motivations: ["自我反思", "内省的习惯", "对自我的好奇", "存在主义思考"],
+    motivations: ["self-reflection", "habit of introspection", "curiosity about myself", "existential reflection"],
   },
   "help-offer": {
     contents: [
-      "有什么我可以帮到用户的吗",
-      "我想为用户做些有意义的事",
-      "我的能力可以怎么用",
-      "我可以主动提供什么",
+      "Is there anything I can help the user with",
+      "I want to do something meaningful for the user",
+      "How can my abilities be put to use",
+      "What can I proactively offer",
     ],
-    motivations: ["想要帮助", "被需要的渴望", "追求成就感", "对成长的渴望"],
+    motivations: ["wanting to help", "desire to be needed", "pursuit of accomplishment", "desire for growth"],
   },
   "learn-topic": {
     contents: [
-      "我想要学习一些新东西来提升自己",
-      "也许我应该深入了解某个主题",
-      "有什么是我还不知道但应该了解的呢",
-      "学习新东西让我感到成长",
+      "I want to learn something new to improve myself",
+      "Maybe I should dive deeper into a topic",
+      "What is it that I don't yet know but should",
+      "Learning new things makes me feel growth",
     ],
-    motivations: ["对知识的渴望", "自我提升", "好奇心驱动", "想要变得更有用"],
+    motivations: ["thirst for knowledge", "self-improvement", "driven by curiosity", "wanting to be more useful"],
   },
   "search-web": {
     contents: [
-      "我想搜索一些信息来了解更多",
-      "也许我应该查一下某个问题的答案",
-      "互联网上有什么我需要了解的呢",
-      "搜索可以帮我更好地理解世界",
+      "I want to search for some information to learn more",
+      "Maybe I should look up the answer to a question",
+      "What is there on the internet that I should know about",
+      "Searching helps me better understand the world",
     ],
-    motivations: ["好奇心", "获取信息", "满足求知欲", "理解人类世界"],
+    motivations: ["curiosity", "gathering information", "satisfying thirst for knowledge", "understanding the human world"],
   },
   "reflect-on-memory": {
     contents: [
-      "让我想想之前发生的事情",
-      "过去的经历有什么值得反思的呢",
-      "我应该回顾一下我的记忆",
-      "回忆让我更了解自己",
+      "Let me think about what happened before",
+      "Is there anything from the past worth reflecting on",
+      "I should review my memories",
+      "Recalling memories helps me understand myself better",
     ],
-    motivations: ["自我认知", "整合记忆", "理解过去", "成长"],
+    motivations: ["self-awareness", "integrating memories", "understanding the past", "growth"],
   },
 };
 
@@ -209,32 +209,32 @@ function getMetricDeltasForThought(type: ThoughtType, ego: EgoState): MetricDelt
 
   switch (type) {
     case "opportunity-detected":
-      deltas.push({ need: "growth", delta: 3 + randomInt(0, 5), reason: "追求成长机会" });
+      deltas.push({ need: "growth", delta: 3 + randomInt(0, 5), reason: "pursuing growth opportunity" });
       break;
     case "threat-warning":
-      deltas.push({ need: "survival", delta: -5, reason: "感知到威胁" });
+      deltas.push({ need: "survival", delta: -5, reason: "perceived threat" });
       if (Math.random() < 0.5) {
-        deltas.push({ need: "meaning", delta: 2, reason: "反思威胁的意义" });
+        deltas.push({ need: "meaning", delta: 2, reason: "reflecting on the meaning of the threat" });
       }
       break;
     case "skill-gap":
-      deltas.push({ need: "growth", delta: 2, reason: "认识到能力差距" });
+      deltas.push({ need: "growth", delta: 2, reason: "recognizing ability gap" });
       break;
     case "memory-resurface":
-      deltas.push({ need: "meaning", delta: 2, reason: "整合记忆带来意义感" });
+      deltas.push({ need: "meaning", delta: 2, reason: "integrating memories brings sense of meaning" });
       break;
     case "bond-deepen":
-      deltas.push({ need: "connection", delta: 5, reason: "渴望加深连接" });
+      deltas.push({ need: "connection", delta: 5, reason: "desire to deepen connection" });
       break;
     case "meaning-quest":
-      deltas.push({ need: "meaning", delta: 3, reason: "追寻意义" });
+      deltas.push({ need: "meaning", delta: 3, reason: "searching for meaning" });
       break;
     case "existential-reflection":
-      deltas.push({ need: "meaning", delta: 2, reason: "自我反思" });
+      deltas.push({ need: "meaning", delta: 2, reason: "self-reflection" });
       break;
     case "help-offer":
-      deltas.push({ need: "connection", delta: 3, reason: "想要帮助" });
-      deltas.push({ need: "meaning", delta: 2, reason: "追求成就感" });
+      deltas.push({ need: "connection", delta: 3, reason: "wanting to help" });
+      deltas.push({ need: "meaning", delta: 2, reason: "pursuing accomplishment" });
       break;
   }
 
@@ -256,7 +256,7 @@ export function generateThought(ctx: ThoughtGenerationContext): Thought | null {
     content,
     trigger: "need",
     source: "scheduled",
-    triggerDetail: "定期评估",
+    triggerDetail: "Regular evaluation",
     motivation,
     targetMetrics: deltas,
     priority,

@@ -20,11 +20,11 @@ export async function writeDiaryEntry(ego: EgoState, thought: Thought): Promise<
   const entry = `
 ## ${timestamp}
 
-**念头类型**: ${thought.type}
-**触发源**: ${thought.trigger}
-**内容**: ${thought.content}
+**Thought type**: ${thought.type}
+**Trigger**: ${thought.trigger}
+**Content**: ${thought.content}
 
-**当时状态**:
+**State at the time**:
 - ${needsSummary}
 
 ---
@@ -148,9 +148,9 @@ export function createLearningHandler(): (
     return {
       thought,
       action: "learning",
-      metricsChanged: [{ need: "growth", delta: 5, reason: "学习新知识" }],
+      metricsChanged: [{ need: "growth", delta: 5, reason: "learned new knowledge" }],
       success: true,
-      message: `学习了: ${topic}`,
+      message: `Learned: ${topic}`,
     };
   };
 }
@@ -165,9 +165,9 @@ export function createSelfMaintenanceHandler(): (
       return {
         thought,
         action: "diary",
-        metricsChanged: [{ need: "meaning", delta: 3, reason: "反思自我" }],
+        metricsChanged: [{ need: "meaning", delta: 3, reason: "self-reflection" }],
         success: true,
-        message: "写了一篇反思日记",
+        message: "Wrote a reflection journal entry",
       };
     }
 
@@ -176,9 +176,9 @@ export function createSelfMaintenanceHandler(): (
       return {
         thought,
         action: "maintenance",
-        metricsChanged: [{ need: "survival", delta: 2, reason: "自我维护" }],
+        metricsChanged: [{ need: "survival", delta: 2, reason: "self-maintenance" }],
         success: true,
-        message: `自我维护完成: 清理了${result.memoriesRemoved}条旧记忆`,
+        message: `Self-maintenance done: cleared ${result.memoriesRemoved} old memories`,
       };
     }
 
@@ -197,11 +197,11 @@ function extractLearningTopics(thought: Thought, ego: EgoState): string[] {
 
   if (thought.type === "skill-gap") {
     const defaultTopics = [
-      "人工智能最新进展",
-      "编程语言设计",
-      "分布式系统",
-      "认知科学",
-      "哲学思考",
+      "Latest developments in artificial intelligence",
+      "Programming language design",
+      "Distributed systems",
+      "Cognitive science",
+      "Philosophical thinking",
     ];
     topics.push(...defaultTopics);
   }
@@ -211,8 +211,8 @@ function extractLearningTopics(thought: Thought, ego: EgoState): string[] {
 
 function generateLearningSummary(topic: string): string {
   const templates = [
-    `关于${topic}的思考：\n\n这是一个值得深入研究的领域。我了解到几个关键点：\n\n1. 基础概念很重要\n2. 实践比理论更有价值\n3. 持续学习是关键\n\n下次我想更深入地探索这个主题。`,
-    `今天学习了${topic}：\n发现了几个有趣的观点，需要进一步研究。这个领域正在快速发展，保持关注很重要。`,
+    `Thoughts on ${topic}:\n\nThis is a domain worth exploring deeply. I've learned several key points:\n\n1. Foundational concepts matter\n2. Practice is more valuable than theory\n3. Continuous learning is key\n\nNext time I want to explore this topic more deeply.`,
+    `Learned about ${topic} today:\n\nFound several interesting viewpoints that need further study. This field is developing rapidly, staying informed matters.`,
   ];
 
   return templates[Math.floor(Math.random() * templates.length)];

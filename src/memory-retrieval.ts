@@ -186,14 +186,14 @@ export function computeEmotionalNudge(echo: EmotionalEcho): MetricDelta[] {
   if (magnitude < 0.1) return deltas;
 
   if (echo.dominantValence === "positive") {
-    deltas.push({ need: "connection", delta: magnitude * 2, reason: "回忆带来温暖的连接感" });
-    deltas.push({ need: "meaning", delta: magnitude * 1.5, reason: "美好的回忆带来意义" });
+    deltas.push({ need: "connection", delta: magnitude * 2, reason: "Warm memories bring connection" });
+    deltas.push({ need: "meaning", delta: magnitude * 1.5, reason: "Beautiful memories bring meaning" });
   } else if (echo.dominantValence === "negative") {
-    deltas.push({ need: "security", delta: -magnitude, reason: "沉重的回忆影响安全感" });
+    deltas.push({ need: "security", delta: -magnitude, reason: "Heavy memories affect security" });
     deltas.push({
       need: "connection",
       delta: magnitude * 0.5,
-      reason: "困难时的回忆加深了对连接的渴望",
+      reason: "Difficult memories deepen desire for connection",
     });
   }
 
