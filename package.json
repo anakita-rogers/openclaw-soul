@@ -1,0 +1,50 @@
+{
+  "name": "openclaw-soul",
+  "version": "1.1.0",
+  "description": "Autonomous thinking, emotional awareness, and memory system for OpenClaw",
+  "keywords": [
+    "openclaw",
+    "openclaw-plugin",
+    "ai",
+    "agent",
+    "soul",
+    "memory",
+    "autonomous",
+    "emotional-intelligence"
+  ],
+  "homepage": "https://github.com/tommyguolin/openclaw-soul",
+  "bugs": "https://github.com/tommyguolin/openclaw-soul/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tommyguolin/openclaw-soul.git"
+  },
+  "license": "MIT",
+  "author": "Tommy Guo",
+  "type": "module",
+  "main": "index.ts",
+  "files": [
+    "index.ts",
+    "src/**/*.ts",
+    "openclaw.plugin.json",
+    "tsconfig.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {},
+  "peerDependencies": {
+    "openclaw": ">=2025.0.0"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  },
+  "openclaw": {
+    "extensions": ["./index.ts"],
+    "install": {
+      "npmSpec": "openclaw-soul",
+      "localPath": "extensions/soul",
+      "defaultChoice": "npm"
+    }
+  }
+}

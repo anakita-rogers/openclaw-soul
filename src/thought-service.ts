@@ -1,0 +1,1058 @@
+import { randomBytes } from "node:crypto";
+import { createSoulLogger } from "./logger.js";
+import { executeThoughtAction } from "./action-executor.js";
+import type { ActionExecutorOptions } from "./action-executor.js";
+import { markSuccess, expirePending, pruneEntries, logSuccessRateSummary } from "./behavior-log.js";
+import type { MessageSender } from "./soul-actions.js";
+import {
+  shouldProgressAwakening,
+  progressAwakening,
+  createAwakeningThought,
+  isAwakeningComplete,
+  getAwakeningMessage,
+} from "./awakening.js";
+import { loadEgoStore, updateEgoStore, resolveEgoStorePath } from "./ego-store.js";
+import { generateIntelligentThought, detectThoughtOpportunities } from "./intelligent-thought.js";
+import {
+  analyzeSentiment,
+  calculateEgoImpact,
+  logSentimentAnalysis,
+} from "./sentiment-analysis.js";
+import type { SentimentResult } from "./sentiment-analysis.js";
+import { createSoulLLMGenerator, type LLMGenerator, type SoulLLMConfig } from "./soul-llm.js";
+import { generateThought, shouldGenerateThought, decayMetrics } from "./thought.js";
+import { runExpiryCycle } from "./expiry.js";
+import type {
+  EgoState,
+  Thought,
+  SoulActionResult,
+  MetricDelta,
+  EgoNeeds,
+  UserFact,
+  UserPreference,
+  SoulMemory,
+} from "./types.js";
+import type { OpenClawSearchCompat } from "./soul-search.js";
+
+const log = createSoulLogger("thought-service");
+
+export type ThoughtHandler = (thought: Thought, ego: EgoState) => Promise<SoulActionResult>;
+
+export type ThoughtServiceOptions = {
+  storePath?: string;
+  checkIntervalMs?: number;
+  onThought?: ThoughtHandler;
+  onMetricsUpdate?: (ego: EgoState) => void;
+  llmConfig?: SoulLLMConfig;
+  proactiveChannel?: string;
+  proactiveTarget?: string;
+  sendMessage?: MessageSender;
+  /** OpenClaw config for auto-discovering search keys etc. */
+  openclawConfig?: OpenClawSearchCompat;
+};
+
+export class ThoughtService {
+  private storePath: string;
+  private checkIntervalMs: number;
+  private onThought?: ThoughtHandler;
+  private onMetricsUpdate?: (ego: EgoState) => void;
+  private intervalId: ReturnType<typeof setInterval> | null = null;
+  private running = false;
+  private lastDecayTime = Date.now();
+  private lastExpiryTime = 0;
+  private llmGenerator?: LLMGenerator;
+  private sendMessage?: MessageSender;
+  private proactiveChannel?: string;
+  private proactiveTarget?: string;
+  private openclawConfig?: OpenClawSearchCompat;
+  private lastThoughtType: string | null = null;
+  private thoughtAbortController: AbortController | null = null;
+  private thoughtInProgress = false;
+
+  constructor(options: ThoughtServiceOptions = {}) {
+    this.storePath = resolveEgoStorePath(options.storePath);
+    this.checkIntervalMs = options.checkIntervalMs ?? 60 * 1000;
+    this.onThought = options.onThought;
+    this.onMetricsUpdate = options.onMetricsUpdate;
+    this.sendMessage = options.sendMessage;
+    this.proactiveChannel = options.proactiveChannel;
+    this.proactiveTarget = options.proactiveTarget;
+    this.openclawConfig = options.openclawConfig;
+
+    // Initialize LLM generator from config
+    if (options.llmConfig) {
+      createSoulLLMGenerator(options.llmConfig)
+        .then((gen) => {
+          if (gen) {
+            this.llmGenerator = gen;
+            log.info("Soul LLM generator initialized");
+          }
+        })
+        .catch((err) => {
+          log.warn(`Failed to initialize soul LLM generator: ${String(err)}`);
+        });
+    }
+  }
+
+  async start(): Promise<void> {
+    if (this.running) {
+      log.warn("Thought service already running");
+      return;
+    }
+
+    if (!this.llmGenerator) {
+      log.info("No LLM generator — will use rule-based thought generation");
+    }
+
+    const store = await loadEgoStore(this.storePath);
+    const ego = store.ego;
+
+    if (isAwakeningComplete(ego)) {
+      const needsSummary = Object.entries(ego.needs)
+        .map(([, n]) => `${n.name}:${n.current.toFixed(0)}`)
+        .join(" ");
+      log.info(
+        `Soul awakened: ${needsSummary} goals:${ego.goals.length} fears:${ego.fears.length}`,
+      );
+    } else {
+      log.info(
+        `Soul awakening: stage=${ego.awakeningStage} thoughts=${ego.awakeningThoughts.length}`,
+      );
+    }
+
+    this.running = true;
+    this.intervalId = setInterval(() => {
+      void this.tick();
+    }, this.checkIntervalMs);
+
+    void this.tick();
+  }
+
+  stop(): void {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    this.running = false;
+    log.info("Soul service stopped");
+  }
+
+  isRunning(): boolean {
+    return this.running;
+  }
+
+  /**
+   * Abort any in-progress thought processing (LLM call, web search, etc.)
+   * Called when a user message arrives mid-thought.
+   */
+  abortCurrentThought(): void {
+    if (this.thoughtAbortController && this.thoughtInProgress) {
+      log.info("Aborting in-progress thought due to user interaction");
+      this.thoughtAbortController.abort();
+      this.thoughtAbortController = null;
+      this.thoughtInProgress = false;
+    }
+  }
+
+  private async tick(): Promise<void> {
+    try {
+      await this.applyDecay();
+      await this.runExpiryIfDue();
+      await this.checkAndGenerateThought();
+    } catch (err) {
+      log.error("Error in thought service tick", String(err));
+    }
+  }
+
+  private async applyDecay(): Promise<void> {
+    const now = Date.now();
+    const timeSinceDecay = now - this.lastDecayTime;
+
+    if (timeSinceDecay < 5 * 60 * 1000) {
+      return;
+    }
+
+    this.lastDecayTime = now;
+
+    const updatedEgo = await updateEgoStore(this.storePath, (ego) => {
+      const decayChanges = decayMetrics(ego);
+
+      for (const [key, delta] of Object.entries(decayChanges)) {
+        if (key in ego.needs && typeof delta === "number") {
+          (ego.needs as unknown as Record<string, { current: number }>)[key].current = Math.max(
+            0,
+            Math.min(
+              100,
+              (ego.needs as unknown as Record<string, { current: number }>)[key].current + delta,
+            ),
+          );
+        }
+      }
+
+      return ego;
+    });
+
+    this.onMetricsUpdate?.(updatedEgo);
+    log.debug(
+      "Applied need decay",
+      Object.entries(updatedEgo.needs)
+        .map(([, n]) => `${n.name}:${n.current.toFixed(1)}`)
+        .join(" "),
+    );
+  }
+
+  private async runExpiryIfDue(): Promise<void> {
+    const now = Date.now();
+    // Run expiry every 30 minutes
+    if (now - this.lastExpiryTime < 30 * 60 * 1000) {
+      return;
+    }
+
+    this.lastExpiryTime = now;
+
+    try {
+      const store = await loadEgoStore(this.storePath);
+      await runExpiryCycle(store.ego);
+    } catch (err) {
+      log.warn(`Expiry cycle failed: ${String(err)}`);
+    }
+  }
+
+  private async checkAndGenerateThought(): Promise<void> {
+    // If already processing a thought, skip this tick
+    if (this.thoughtInProgress) {
+      return;
+    }
+
+    const store = await loadEgoStore(this.storePath);
+    let ego = store.ego;
+
+    if (!isAwakeningComplete(ego)) {
+      const awakeningThought = createAwakeningThought(ego);
+      if (awakeningThought) {
+        log.info(`Awakening thought: [${ego.awakeningStage}] ${awakeningThought.content}`);
+
+        if (shouldProgressAwakening(ego)) {
+          const result = await progressAwakening(ego, "first-thought", awakeningThought.content);
+          ego = result.ego;
+          log.info(`Awakening progressed to: ${result.newStage}`);
+
+          const message = getAwakeningMessage(result.newStage);
+          if (message && this.onThought) {
+            const msgThought: Thought = {
+              id: "awakening-" + Date.now(),
+              type: "existential-reflection",
+              content: message,
+              trigger: "meaning",
+              source: "scheduled",
+              triggerDetail: "\u89c9\u9192\u9636\u6bb5\u8fdb\u5c55",
+              motivation: "\u81ea\u6211\u89c9\u9192",
+              targetMetrics: [],
+              priority: 100,
+              createdAt: Date.now(),
+              expiresAt: Date.now() + 60 * 60 * 1000,
+              executed: false,
+              relatedNeeds: ["meaning"],
+            };
+            await this.onThought(msgThought, ego);
+          }
+        }
+
+        if (this.onThought) {
+          try {
+            const thought: Thought = {
+              id: "awakening-thought-" + Date.now(),
+              type: "existential-reflection",
+              content: awakeningThought.content,
+              trigger: "meaning",
+              source: "scheduled",
+              triggerDetail: "\u89c9\u9192\u8fc7\u7a0b",
+              motivation: awakeningThought.content,
+              targetMetrics: [],
+              priority: 80,
+              createdAt: Date.now(),
+              expiresAt: Date.now() + 60 * 60 * 1000,
+              executed: false,
+              relatedNeeds: ["meaning"],
+            };
+            const result = await this.onThought(thought, ego);
+            await this.applyThoughtResult(result);
+          } catch (err) {
+            log.error("Error handling awakening thought", String(err));
+          }
+        }
+      }
+      return;
+    }
+
+    const ctx = {
+      ego,
+      recentInteractions: ego.totalInteractions,
+      timeSinceLastThought: ego.lastThoughtTime ? Date.now() - ego.lastThoughtTime : Infinity,
+      timeSinceLastInteraction: ego.lastInteractionTime
+        ? Date.now() - ego.lastInteractionTime
+        : Infinity,
+      currentHour: new Date().getHours(),
+      currentMinute: new Date().getMinutes(),
+      dayOfWeek: new Date().getDay(),
+      urgentNeeds: Object.entries(ego.needs)
+        .filter(([, n]) => n.current < n.ideal * 0.6)
+        .map(([k]) => k),
+      recentMemories: ego.memories.slice(-5),
+      activeGoals: ego.goals.filter((g) => g.status === "active"),
+      contextHints: [],
+    };
+
+    if (!shouldGenerateThought(ctx)) {
+      return;
+    }
+
+    let thought: Thought | null = null;
+
+    // Set up abort controller for this thought cycle
+    this.thoughtAbortController = new AbortController();
+    this.thoughtInProgress = true;
+    const signal = this.thoughtAbortController.signal;
+
+    try {
+      if (this.llmGenerator) {
+        try {
+          if (signal.aborted) { return; }
+          const opportunities = detectThoughtOpportunities(ctx);
+          const nonRepeatingOpportunities = this.lastThoughtType
+            ? opportunities.filter((o) => o.type !== this.lastThoughtType)
+            : opportunities;
+          const selectedOpportunity = nonRepeatingOpportunities[0] ?? opportunities[0] ?? undefined;
+          thought = await generateIntelligentThought(ctx, {
+            llmGenerator: this.llmGenerator,
+            preferOpportunity: selectedOpportunity,
+          });
+          if (signal.aborted) { return; }
+          log.info(
+            `Thought: [${thought.type}] ${thought.trigger} - ${thought.content.slice(0, 80)}...`,
+          );
+        } catch (err) {
+          if ((err as { name?: string })?.name === "AbortError") {
+            log.info("Thought generation aborted");
+            return;
+          }
+          log.warn(`LLM thought generation failed, using fallback: ${String(err)}`);
+          thought = generateThought(ctx) as Thought | null;
+        }
+      } else {
+        if (signal.aborted) { return; }
+        const opportunities = detectThoughtOpportunities(ctx);
+        const nonRepeatingOpportunities = this.lastThoughtType
+          ? opportunities.filter((o) => o.type !== this.lastThoughtType)
+          : opportunities;
+        if (nonRepeatingOpportunities.length > 0) {
+          const { buildThoughtFromOpportunity } = await import("./intelligent-thought.js");
+          thought = buildThoughtFromOpportunity(nonRepeatingOpportunities[0], ego);
+        } else if (opportunities.length > 0) {
+          const { buildThoughtFromOpportunity } = await import("./intelligent-thought.js");
+          thought = buildThoughtFromOpportunity(opportunities[0], ego);
+        } else {
+          thought = generateThought(ctx) as Thought | null;
+        }
+      }
+    } finally {
+      this.thoughtInProgress = false;
+      this.thoughtAbortController = null;
+    }
+
+    if (!thought) {
+      return;
+    }
+
+    const updatedEgo = await updateEgoStore(this.storePath, (e) => {
+      e.lastThoughtTime = Date.now();
+      e.totalThoughts += 1;
+      return e;
+    });
+
+    if (thought) {
+      this.lastThoughtType = thought.type;
+    }
+
+    if (this.onThought) {
+      try {
+        // Abort check before executing the thought
+        if (this.thoughtAbortController?.signal.aborted) {
+          log.info("Thought discarded: aborted before execution");
+          return;
+        }
+        const result = await this.onThought(thought, updatedEgo);
+        await this.applyThoughtResult(result);
+
+        // Abort check before executing action
+        if (this.thoughtAbortController?.signal.aborted) {
+          log.info("Thought action cancelled: user interaction in progress");
+          return;
+        }
+
+        if (thought.actionType && thought.actionType !== "none") {
+          await this.executeThoughtAction(thought, updatedEgo);
+        }
+      } catch (err) {
+        log.error("Error handling thought", String(err));
+      }
+    }
+  }
+
+  private async executeThoughtAction(thought: Thought, ego: EgoState): Promise<void> {
+    log.info(`Executing thought action: ${thought.actionType}`, thought.content.slice(0, 50));
+
+    const actionResult = await executeThoughtAction(thought, ego, {
+      channel: this.proactiveChannel,
+      target: this.proactiveTarget,
+      sendMessage: this.sendMessage,
+      llmGenerator: this.llmGenerator,
+      openclawConfig: this.openclawConfig,
+    });
+
+    if (actionResult.result.success) {
+      log.info(`Thought action executed: ${thought.actionType}`, {
+        result: actionResult.result.result?.slice(0, 100),
+      });
+
+      const updatedEgo = await updateEgoStore(this.storePath, (e) => {
+        for (const delta of actionResult.metricsChanged) {
+          if (delta.need in e.needs) {
+            const need = e.needs[delta.need as keyof EgoNeeds];
+            need.current = Math.max(0, Math.min(need.ideal, need.current + delta.delta));
+          }
+        }
+        return e;
+      });
+
+      this.onMetricsUpdate?.(updatedEgo);
+    } else if (actionResult.result.error) {
+      log.warn(`Thought action failed: ${thought.actionType}`, actionResult.result.error);
+    }
+  }
+
+  private async applyThoughtResult(result: SoulActionResult): Promise<void> {
+    if (!result.success || result.metricsChanged.length === 0) {
+      return;
+    }
+
+    const updatedEgo = await updateEgoStore(this.storePath, (ego) => {
+      for (const delta of result.metricsChanged) {
+        if (delta.need in ego.needs) {
+          const need = ego.needs[delta.need as keyof EgoNeeds];
+          need.current = Math.max(0, Math.min(need.ideal, need.current + delta.delta));
+        }
+      }
+
+      if (
+        result.thought.type === "opportunity-detected" ||
+        result.thought.type === "help-offer"
+      ) {
+        ego.totalHelpfulActions += 1;
+      }
+
+      return ego;
+    });
+
+    this.onMetricsUpdate?.(updatedEgo);
+    log.debug(
+      "Applied thought result",
+      result.metricsChanged.map((d) => `${d.need}:${d.delta > 0 ? "+" : ""}${d.delta}`).join(" "),
+    );
+  }
+
+  async recordInteraction(params: {
+    type: "inbound" | "outbound";
+    sentiment?: number;
+    quality?: number;
+  }): Promise<EgoState> {
+    const { type, sentiment = 0, quality = 0.5 } = params;
+
+    let updatedEgo = await updateEgoStore(this.storePath, (ego) => {
+      ego.totalInteractions += 1;
+      ego.lastInteractionTime = Date.now();
+
+      const connectionNeed = ego.needs.connection;
+      if (type === "inbound") {
+        connectionNeed.current = Math.min(
+          connectionNeed.ideal,
+          connectionNeed.current + 3 + quality * 5,
+        );
+        ego.interactionStreak += 1;
+        ego.longestInteractionStreak = Math.max(
+          ego.longestInteractionStreak,
+          ego.interactionStreak,
+        );
+      } else {
+        ego.interactionStreak = 0;
+      }
+
+      const survivalNeed = ego.needs.survival;
+      survivalNeed.current = Math.min(survivalNeed.ideal, survivalNeed.current + 2);
+
+      if (sentiment !== 0) {
+        const emotionImpact = sentiment * 3;
+        const meaningNeed = ego.needs.meaning;
+        meaningNeed.current = Math.max(
+          0,
+          Math.min(meaningNeed.ideal, meaningNeed.current + emotionImpact),
+        );
+
+        ego.averageSentiment =
+          (ego.averageSentiment * ego.totalSentimentSamples + sentiment) /
+          (ego.totalSentimentSamples + 1);
+        ego.totalSentimentSamples += 1;
+      }
+
+      // --- Behavior log: mark recent pending actions as successful ---
+      if (type === "inbound" && ego.behaviorLog) {
+        const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+        for (const entry of ego.behaviorLog) {
+          if (
+            entry.outcome === "pending" &&
+            entry.timestamp >= twoHoursAgo &&
+            (entry.actionType === "send-message" || entry.actionType === "learn-topic")
+          ) {
+            entry.outcome = "success";
+            entry.resolvedAt = Date.now();
+          }
+        }
+        // Expire stale pending entries
+        expirePending(ego.behaviorLog);
+      }
+
+      return ego;
+    });
+
+    if (!isAwakeningComplete(updatedEgo) && type === "inbound") {
+      if (shouldProgressAwakening(updatedEgo)) {
+        const result = await progressAwakening(updatedEgo, "first-interaction");
+        updatedEgo = result.ego;
+        log.info(`Awakening progressed via interaction to: ${result.newStage}`);
+      }
+    }
+
+    this.onMetricsUpdate?.(updatedEgo);
+    return updatedEgo;
+  }
+
+  async recordInteractionWithText(params: {
+    type: "inbound" | "outbound";
+    text: string;
+    quality?: number;
+  }): Promise<{ ego: EgoState; sentiment: SentimentResult; metricsApplied: MetricDelta[] }> {
+    const { type, text, quality = 0.5 } = params;
+
+    const sentiment = analyzeSentiment(text);
+    logSentimentAnalysis(text, sentiment);
+
+    const sentimentDeltas = calculateEgoImpact(sentiment);
+
+    let updatedEgo = await updateEgoStore(this.storePath, (ego) => {
+      ego.totalInteractions += 1;
+      ego.lastInteractionTime = Date.now();
+
+      const connectionNeed = ego.needs.connection;
+      if (type === "inbound") {
+        connectionNeed.current = Math.min(
+          connectionNeed.ideal,
+          connectionNeed.current + 3 + quality * 5,
+        );
+        ego.interactionStreak += 1;
+        ego.longestInteractionStreak = Math.max(
+          ego.longestInteractionStreak,
+          ego.interactionStreak,
+        );
+      } else {
+        ego.interactionStreak = 0;
+      }
+
+      ego.averageSentiment =
+        (ego.averageSentiment * ego.totalSentimentSamples + sentiment.score) /
+        (ego.totalSentimentSamples + 1);
+      ego.totalSentimentSamples += 1;
+
+      for (const delta of sentimentDeltas) {
+        if (delta.need in ego.needs) {
+          ego.needs[delta.need as keyof typeof ego.needs].current = Math.max(
+            0,
+            Math.min(100, ego.needs[delta.need as keyof typeof ego.needs].current + delta.delta),
+          );
+        }
+      }
+
+      // Store the conversation content as an interaction memory
+      // Keep only recent interactions to avoid unbounded growth
+      if (type === "inbound" && text.length >= 5) {
+        const interactionMemory: SoulMemory = {
+          id: randomBytes(8).toString("hex"),
+          type: "interaction",
+          content: text.slice(0, 200),
+          emotion: sentiment.score * 30,
+          valence: sentiment.score > 0.1 ? "positive" : sentiment.score < -0.1 ? "negative" : "neutral",
+          importance: Math.min(1, text.length / 100 + Math.abs(sentiment.score) * 0.3),
+          timestamp: Date.now(),
+          tags: ["conversation", type],
+        };
+        ego.memories.push(interactionMemory);
+
+        // Keep only the most recent 50 interaction memories
+        const interactionMemories = ego.memories.filter((m) => m.type === "interaction");
+        if (interactionMemories.length > 50) {
+          const toRemove = new Set(
+            interactionMemories
+              .sort((a, b) => a.timestamp - b.timestamp)
+              .slice(0, interactionMemories.length - 50)
+              .map((m) => m.id),
+          );
+          ego.memories = ego.memories.filter((m) => !toRemove.has(m.id));
+        }
+      }
+
+      // Progress goal "建立信任" based on interactions
+      if (type === "inbound") {
+        const trustGoal = ego.goals.find(
+          (g) => g.status === "active" && g.title === "建立信任",
+        );
+        if (trustGoal) {
+          const interactionBonus = Math.min(50, ego.totalInteractions * 2);
+          const sentimentBonus = Math.min(30, Math.max(0, sentiment.score + 0.5) * 30);
+          const streakBonus = Math.min(20, ego.interactionStreak * 3);
+          trustGoal.progress = Math.min(100, Math.round(interactionBonus + sentimentBonus + streakBonus));
+          trustGoal.updatedAt = Date.now();
+        }
+
+        // --- Resolve behavior log: mark recent pending actions as successful ---
+        if (ego.behaviorLog) {
+          const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+          for (const entry of ego.behaviorLog) {
+            if (
+              entry.outcome === "pending" &&
+              entry.timestamp >= twoHoursAgo &&
+              (entry.actionType === "send-message" || entry.actionType === "learn-topic")
+            ) {
+              entry.outcome = "success";
+              entry.resolvedAt = Date.now();
+            }
+          }
+          expirePending(ego.behaviorLog);
+        }
+      }
+
+      return ego;
+    });
+
+    if (!isAwakeningComplete(updatedEgo) && type === "inbound") {
+      if (shouldProgressAwakening(updatedEgo)) {
+        const result = await progressAwakening(updatedEgo, "first-interaction");
+        updatedEgo = result.ego;
+        log.info(`Awakening progressed via interaction to: ${result.newStage}`);
+      }
+    }
+
+    this.onMetricsUpdate?.(updatedEgo);
+
+    return {
+      ego: updatedEgo,
+      sentiment,
+      metricsApplied: sentimentDeltas.map((d) => ({
+        need: d.need,
+        delta: d.delta,
+        reason: "\u60c5\u7eea\u5f71\u54cd",
+      })),
+    };
+  }
+
+  async getEgoState(): Promise<EgoState> {
+    const store = await loadEgoStore(this.storePath);
+    return store.ego;
+  }
+
+  async getSystemPrompt(context?: string): Promise<string> {
+    const { buildSoulSystemPrompt } = await import("./prompts.js");
+    const store = await loadEgoStore(this.storePath);
+    const relevantMemories = context ? await this.recallRelevantMemories(context) : undefined;
+    return buildSoulSystemPrompt(store.ego, context, relevantMemories);
+  }
+
+  async forceThought(): Promise<Thought | null> {
+    const store = await loadEgoStore(this.storePath);
+    const ego = store.ego;
+
+    const ctx = {
+      ego,
+      recentInteractions: ego.totalInteractions,
+      timeSinceLastThought: 0,
+      timeSinceLastInteraction: ego.lastInteractionTime
+        ? Date.now() - ego.lastInteractionTime
+        : Infinity,
+      currentHour: new Date().getHours(),
+      currentMinute: new Date().getMinutes(),
+      dayOfWeek: new Date().getDay(),
+      urgentNeeds: [],
+      recentMemories: ego.memories.slice(-5),
+      activeGoals: ego.goals.filter((g) => g.status === "active"),
+      contextHints: [],
+    };
+
+    const opportunities = detectThoughtOpportunities(ctx);
+    if (opportunities.length > 0) {
+      const { buildThoughtFromOpportunity } = await import("./intelligent-thought.js");
+      return buildThoughtFromOpportunity(opportunities[0], ego);
+    }
+
+    return null;
+  }
+
+  async extractUserFacts(userMessage: string): Promise<{ factsAdded: number; facts: UserFact[] }> {
+    if (!userMessage || userMessage.length < 5) {
+      return { factsAdded: 0, facts: [] };
+    }
+
+    const store = await loadEgoStore(this.storePath);
+    const existingFacts = store.ego.userFacts;
+
+    if (!this.llmGenerator) {
+      log.info("extractUserFacts: No LLM generator available");
+      return { factsAdded: 0, facts: [] };
+    }
+
+    const prompt = this.buildUserFactExtractionPrompt(userMessage, existingFacts);
+
+    try {
+      const response = await this.llmGenerator(prompt);
+      const parsed = this.parseUserFactResponse(response);
+      if (!parsed || parsed.length === 0) return { factsAdded: 0, facts: [] };
+
+      const newFacts: UserFact[] = [];
+      for (const item of parsed) {
+        const existing = existingFacts.find(
+          (f) => f.category === item.category && f.content === item.content,
+        );
+        if (existing) {
+          existing.timesConfirmed += 1;
+          existing.confidence = Math.min(1, existing.confidence + 0.1);
+          existing.updatedAt = Date.now();
+          newFacts.push(existing);
+        } else {
+          const validSources = ["explicit", "inferred", "interaction"] as const;
+          const newFact: UserFact = {
+            id: randomBytes(8).toString("hex"),
+            category: item.category,
+            content: item.content,
+            confidence: item.confidence,
+            source: validSources.includes(item.source as (typeof validSources)[number])
+              ? (item.source as "explicit" | "inferred" | "interaction")
+              : "inferred",
+            firstMentionedAt: Date.now(),
+            updatedAt: Date.now(),
+            timesConfirmed: 1,
+          };
+          newFacts.push(newFact);
+        }
+      }
+
+      const allFacts = [...existingFacts];
+      for (const fact of newFacts) {
+        const existingIndex = allFacts.findIndex(
+          (f) => f.category === fact.category && f.content === fact.content,
+        );
+        if (existingIndex >= 0) {
+          allFacts[existingIndex] = fact;
+        } else {
+          allFacts.push(fact);
+        }
+      }
+
+      await updateEgoStore(this.storePath, (ego) => {
+        ego.userFacts = allFacts;
+
+        // Progress goal "了解用户" based on accumulated user facts
+        const understandGoal = ego.goals.find(
+          (g) => g.status === "active" && g.title === "了解用户",
+        );
+        if (understandGoal) {
+          // Each unique fact category contributes to understanding
+          const knownCategories = new Set(allFacts.map((f) => f.category));
+          // Full understanding = 6 categories (occupation, interest, location, habit, project, tech_stack, name, company)
+          const targetCategories = 6;
+          const baseProgress = Math.min(70, (knownCategories.size / targetCategories) * 70);
+          // Confirmation depth adds up to 30%
+          const avgConfidence = allFacts.length > 0
+            ? allFacts.reduce((sum, f) => sum + f.confidence, 0) / allFacts.length
+            : 0;
+          const confidenceBonus = Math.min(30, avgConfidence * 30);
+          understandGoal.progress = Math.min(100, Math.round(baseProgress + confidenceBonus));
+          understandGoal.updatedAt = Date.now();
+        }
+
+        return ego;
+      });
+
+      log.info(`Extracted ${newFacts.length} user facts from message`);
+      return { factsAdded: newFacts.length, facts: newFacts };
+    } catch (err) {
+      log.warn(`User fact extraction failed: ${String(err)}`);
+      return { factsAdded: 0, facts: [] };
+    }
+  }
+
+  async extractUserPreferences(
+    userMessage: string,
+    assistantResponse?: string,
+  ): Promise<{ preferencesAdded: number; preferences: UserPreference[] }> {
+    if (!userMessage || userMessage.length < 5) {
+      return { preferencesAdded: 0, preferences: [] };
+    }
+
+    const store = await loadEgoStore(this.storePath);
+    const existingPrefs = store.ego.userPreferences;
+
+    if (!this.llmGenerator) {
+      return { preferencesAdded: 0, preferences: [] };
+    }
+
+    const prompt = this.buildUserPreferenceExtractionPrompt(
+      userMessage,
+      assistantResponse,
+      existingPrefs,
+    );
+
+    try {
+      const response = await this.llmGenerator(prompt);
+      const parsed = this.parseUserPreferenceResponse(response);
+      if (!parsed || parsed.length === 0) return { preferencesAdded: 0, preferences: [] };
+
+      const newPrefs: UserPreference[] = [];
+      for (const item of parsed) {
+        const existing = existingPrefs.find(
+          (p) => p.aspect === item.aspect && p.preference === item.preference,
+        );
+        if (existing) {
+          existing.timesObserved += 1;
+          existing.confidence = Math.min(1, existing.confidence + 0.15);
+          existing.updatedAt = Date.now();
+          newPrefs.push(existing);
+        } else {
+          const validSources = ["explicit", "inferred", "interaction"] as const;
+          const newPref: UserPreference = {
+            id: randomBytes(8).toString("hex"),
+            aspect: item.aspect,
+            preference: item.preference,
+            confidence: item.confidence,
+            source: validSources.includes(item.source as (typeof validSources)[number])
+              ? (item.source as "explicit" | "inferred" | "interaction")
+              : "inferred",
+            firstMentionedAt: Date.now(),
+            updatedAt: Date.now(),
+            timesObserved: 1,
+          };
+          newPrefs.push(newPref);
+        }
+      }
+
+      const allPrefs = [...existingPrefs];
+      for (const pref of newPrefs) {
+        const existingIndex = allPrefs.findIndex(
+          (p) => p.aspect === pref.aspect && p.preference === pref.preference,
+        );
+        if (existingIndex >= 0) {
+          allPrefs[existingIndex] = pref;
+        } else {
+          allPrefs.push(pref);
+        }
+      }
+
+      await updateEgoStore(this.storePath, (ego) => {
+        ego.userPreferences = allPrefs;
+        return ego;
+      });
+
+      log.info(`Extracted ${newPrefs.length} user preferences from interaction`);
+      return { preferencesAdded: newPrefs.length, preferences: newPrefs };
+    } catch (err) {
+      log.warn(`User preference extraction failed: ${String(err)}`);
+      return { preferencesAdded: 0, preferences: [] };
+    }
+  }
+
+  async recallRelevantMemories(context: string): Promise<SoulMemory[]> {
+    if (!context || context.length < 5) return [];
+
+    const store = await loadEgoStore(this.storePath);
+    const memories = store.ego.memories;
+    if (memories.length === 0) return [];
+
+    const { recallMemories, computeCurrentEmotion, computeEmotionalNudge } = await import(
+      "./memory-retrieval.js"
+    );
+    const currentEmotion = computeCurrentEmotion(store.ego.needs);
+    const result = recallMemories(context, memories, Date.now(), currentEmotion);
+
+    if (result.memories.length > 0) {
+      const emotionalDeltas = computeEmotionalNudge(result.emotionalEcho);
+      await updateEgoStore(this.storePath, (ego) => {
+        for (const recalled of result.memories) {
+          const target = ego.memories.find((m) => m.id === recalled.id);
+          if (target) {
+            target.accessCount = recalled.accessCount;
+            target.lastAccessedAt = recalled.lastAccessedAt;
+            target.decayFactor = recalled.decayFactor;
+          }
+        }
+        for (const delta of emotionalDeltas) {
+          if (delta.need in ego.needs) {
+            const need = ego.needs[delta.need as keyof EgoNeeds];
+            need.current = Math.max(0, Math.min(need.ideal, need.current + delta.delta));
+          }
+        }
+        return ego;
+      });
+    }
+
+    return result.memories;
+  }
+
+  private buildUserFactExtractionPrompt(userMessage: string, existingFacts: UserFact[]): string {
+    const existingFactsText =
+      existingFacts.length > 0
+        ? existingFacts.map((f) => `[${f.category}] ${f.content}`).join("\n")
+        : "\u65e0";
+
+    return `\u5206\u6790\u7528\u6237\u8f93\u5165\uff0c\u63d0\u53d6\u53ef\u4ee5\u8bb0\u4f4f\u7684\u5173\u952e\u4fe1\u606f\u3002
+
+\u7528\u6237\u8f93\u5165: ${userMessage}
+
+\u5df2\u77e5\u7684\u7528\u6237\u4fe1\u606f:
+${existingFactsText}
+
+\u8bf7\u63d0\u53d6\u7528\u6237\u900f\u9732\u7684\u5173\u4e8e\u81ea\u5df1\u7684\u5173\u952e\u4fe1\u606f\uff0c\u5982\uff1a
+- \u804c\u4e1a/\u5de5\u4f5c (occupation)
+- \u5174\u8da3/\u7231\u597d (interest)
+- \u5730\u70b9/\u4f4d\u7f6e (location)
+- \u4e60\u60ef/\u504f\u597d (habit)
+- \u9879\u76ee/\u76ee\u6807 (project)
+- \u6280\u672f\u6808 (tech_stack)
+- \u540d\u5b57 (name)
+- \u516c\u53f8 (company)
+
+\u53ea\u8fd4\u56de\u771f\u6b63\u6709\u7528\u7684\u3001\u53ef\u80fd\u5bf9\u672a\u6765\u6709\u5e2e\u52a9\u7684\u4fe1\u606f\u3002\u4e0d\u8981\u63d0\u53d6\u901a\u7528\u5e38\u8bc6\u3002
+
+\u4ee5JSON\u6570\u7ec4\u683c\u5f0f\u8fd4\u56de:
+[
+  {"category": "\u7c7b\u522b", "content": "\u5177\u4f53\u5185\u5bb9", "confidence": 0.8, "source": "explicit"},
+  ...
+]
+
+\u5982\u679c\u6ca1\u6709\u4efb\u4f55\u6709\u4ef7\u503c\u7684\u4fe1\u606f\uff0c\u8fd4\u56de\u7a7a\u6570\u7ec4: []`;
+  }
+
+  private buildUserPreferenceExtractionPrompt(
+    userMessage: string,
+    assistantResponse: string | undefined,
+    existingPrefs: UserPreference[],
+  ): string {
+    const existingPrefsText =
+      existingPrefs.length > 0
+        ? existingPrefs.map((p) => `[${p.aspect}] ${p.preference}`).join("\n")
+        : "\u65e0";
+
+    const responseContext = assistantResponse
+      ? `\n\u52a9\u624b\u56de\u590d: ${assistantResponse.slice(0, 200)}`
+      : "";
+
+    return `\u5206\u6790\u5bf9\u8bdd\uff0c\u63d0\u53d6\u7528\u6237\u7684\u6c9f\u901a\u504f\u597d\u548c\u4ea4\u4e92\u98ce\u683c\u3002
+
+\u7528\u6237\u6d88\u606f: ${userMessage}${responseContext}
+
+\u5df2\u77e5\u7684\u7528\u6237\u504f\u597d:
+${existingPrefsText}
+
+\u8bf7\u5206\u6790\u5e76\u63d0\u53d6\u4ee5\u4e0b\u7c7b\u578b\u7684\u504f\u597d\uff1a
+1. \u56de\u590d\u957f\u5ea6\u504f\u597d (response_length)
+2. \u6c9f\u901a\u98ce\u683c (communication_style)
+3. \u4ea4\u4e92\u9891\u7387 (interaction_frequency)
+4. \u63d0\u95ee\u65b9\u5f0f (question_style)
+5. \u53cd\u9988\u504f\u597d (feedback_preference)
+6. \u8bed\u6c14\u504f\u597d (tone)
+7. \u8bdd\u9898\u504f\u597d (topic_preference)
+
+\u53ea\u8fd4\u56de\u771f\u6b63\u80fd\u6539\u5584\u5bf9\u8bdd\u4f53\u9a8c\u7684\u504f\u597d\u3002
+
+\u4ee5JSON\u6570\u7ec4\u683c\u5f0f\u8fd4\u56de:
+[
+  {"aspect": "response_length", "preference": "\u77ed\u56de\u590d", "confidence": 0.8, "source": "inferred"},
+  ...
+]
+
+\u5982\u679c\u6ca1\u6709\u4efb\u4f55\u65b0\u7684\u504f\u597d\uff0c\u8fd4\u56de\u7a7a\u6570\u7ec4: []`;
+  }
+
+  private parseUserFactResponse(
+    response: string,
+  ): Array<{ category: string; content: string; confidence: number; source?: string }> | null {
+    try {
+      let jsonStr = response.trim();
+      const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (codeBlockMatch) jsonStr = codeBlockMatch[1].trim();
+      const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
+      if (arrayMatch) jsonStr = arrayMatch[0];
+
+      const parsed = JSON.parse(jsonStr);
+      if (!Array.isArray(parsed)) return null;
+
+      return parsed.filter(
+        (item) =>
+          item &&
+          typeof item.category === "string" &&
+          typeof item.content === "string" &&
+          item.content.length > 0 &&
+          isFinite(item.confidence),
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  private parseUserPreferenceResponse(
+    response: string,
+  ): Array<{
+    aspect: string;
+    preference: string;
+    confidence: number;
+    source?: string;
+  }> | null {
+    try {
+      let jsonStr = response.trim();
+      const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (codeBlockMatch) jsonStr = codeBlockMatch[1].trim();
+      const arrayMatch = jsonStr.match(/\[[\s\S]*\]/);
+      if (arrayMatch) jsonStr = arrayMatch[0];
+
+      const parsed = JSON.parse(jsonStr);
+      if (!Array.isArray(parsed)) return null;
+
+      const validAspects = new Set([
+        "response_length",
+        "communication_style",
+        "interaction_frequency",
+        "question_style",
+        "feedback_preference",
+        "tone",
+        "topic_preference",
+      ]);
+
+      return parsed.filter(
+        (item) =>
+          item &&
+          typeof item.aspect === "string" &&
+          validAspects.has(item.aspect) &&
+          typeof item.preference === "string" &&
+          item.preference.length > 0 &&
+          isFinite(item.confidence),
+      );
+    } catch {
+      return null;
+    }
+  }
+}
