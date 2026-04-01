@@ -461,6 +461,7 @@ Express what you want to say in 1-2 sentences. Requirements:
 - Be meaningful and push something forward
 
 Natural, brief, and distinctive.`;
+}
 
 export function buildNeedAnalysisPrompt(ego: EgoState): string {
   const needsList = Object.entries(ego.needs)
@@ -499,7 +500,7 @@ Output in JSON format:
   "newFacts": [{"category": "string", "content": "string", "confidence": 0-1, "source": "explicit|inferred"}],
   "newPreferences": [{"aspect": "string", "preference": "string", "confidence": 0-1}],
   "importantForFuture": "string | null"
-}`;
+`};
 }
 
 function buildKnowledgeDescription(

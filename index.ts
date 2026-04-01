@@ -3,6 +3,7 @@ import { ThoughtService } from "./src/thought-service.js";
 import { createSoulActionHandler, type MessageSender } from "./src/soul-actions.js";
 import { createSoulLogger } from "./src/logger.js";
 import { resolveLLMConfigFromOpenClaw, type SoulLLMConfig } from "./src/soul-llm.js";
+import { getGatewayPort } from "./src/env.js";
 
 const log = createSoulLogger("plugin");
 
@@ -167,7 +168,7 @@ const plugin = {
               return;
             }
             try {
-              const port = process.env.OPENCLAW_GATEWAY_PORT ?? "18789";
+              const port = getGatewayPort();
               const response = await fetch(`http://127.0.0.1:${port}/api/message/send`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

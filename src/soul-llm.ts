@@ -1,4 +1,5 @@
 import { createSoulLogger } from "./logger.js";
+import { getEnvKey, resolveEnvSecret } from "./env.js";
 
 const log = createSoulLogger("llm");
 
@@ -69,7 +70,7 @@ async function callOpenAICompatible(
 }
 
 function resolveApiKey(provider: string, apiKeyEnv?: string): string | undefined {
-  if (apiKeyEnv) return process.env[apiKeyEnv];
+  if (apiKeyEnv) return getEnvKey(apiKeyEnv);
 
   const normalized = provider.toLowerCase();
   const envMapping: Record<string, string> = {
@@ -86,7 +87,7 @@ function resolveApiKey(provider: string, apiKeyEnv?: string): string | undefined
   };
 
   const envKey = envMapping[normalized] ?? `${normalized.toUpperCase()}_API_KEY`;
-  return process.env[envKey];
+  return getEnvKey(envKey);
 }
 
 function resolveBaseUrl(provider: string, customUrl?: string): string | undefined {
@@ -161,13 +162,9 @@ function resolveApiKeyFromProviderConfig(
   const apiKey = (providerCfg as Record<string, unknown>).apiKey;
   if (!apiKey) return undefined;
 
-  // Handle { secret: "env:API_KEY" } format
-  if (typeof apiKey === "object" && apiKey !== null && "secret" in apiKey) {
-    const secret = (apiKey as { secret?: string }).secret;
-    if (typeof secret === "string" && secret.startsWith("env:")) {
-      return process.env[secret.slice(4)];
-    }
-    return undefined;
+  // Handle { secret: "env:API_KEY" } format using the shared env helper
+  if (typeof apiKey === "object" && apiKey !== null) {
+    return resolveEnvSecret(apiKey as { secret?: string });
   }
 
   // Handle plain string (shouldn't happen for secrets, but handle gracefully)

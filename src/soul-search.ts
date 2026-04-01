@@ -1,4 +1,5 @@
 import { createSoulLogger } from "./logger.js";
+import { resolveEnvSecret, getEnvKey } from "./env.js";
 
 const log = createSoulLogger("search");
 
@@ -39,37 +40,24 @@ type ProviderName = "brave" | "gemini" | "grok" | "kimi" | "perplexity" | "bocha
 
 // --- API key resolution helpers ---
 
-function resolveSecret(value: string | { secret?: string } | undefined): string | undefined {
-  if (!value) return undefined;
-  if (typeof value === "string") return value.trim() || undefined;
-  if (typeof value === "object" && "secret" in value) {
-    const secret = value.secret;
-    if (typeof secret === "string" && secret.startsWith("env:")) {
-      return process.env[secret.slice(4)]?.trim() || undefined;
-    }
-    return undefined;
-  }
-  return undefined;
-}
-
 function resolveBraveApiKey(search: SearchConfig | undefined): string | undefined {
-  return resolveSecret(search?.apiKey) || process.env.BRAVE_API_KEY?.trim() || undefined;
+  return resolveEnvSecret(search?.apiKey) || getEnvKey("BRAVE_API_KEY") || undefined;
 }
 
 function resolveGeminiApiKey(search: SearchConfig | undefined): string | undefined {
-  return resolveSecret(search?.gemini?.apiKey) || process.env.GEMINI_API_KEY?.trim() || undefined;
+  return resolveEnvSecret(search?.gemini?.apiKey) || getEnvKey("GEMINI_API_KEY") || undefined;
 }
 
 function resolveGrokApiKey(search: SearchConfig | undefined): string | undefined {
-  return resolveSecret(search?.grok?.apiKey) || process.env.XAI_API_KEY?.trim() || undefined;
+  return resolveEnvSecret(search?.grok?.apiKey) || getEnvKey("XAI_API_KEY") || undefined;
 }
 
 function resolveKimiApiKey(search: SearchConfig | undefined): string | undefined {
-  return resolveSecret(search?.kimi?.apiKey) || process.env.KIMI_API_KEY?.trim() || process.env.MOONSHOT_API_KEY?.trim() || undefined;
+  return resolveEnvSecret(search?.kimi?.apiKey) || getEnvKey("KIMI_API_KEY") || getEnvKey("MOONSHOT_API_KEY") || undefined;
 }
 
 function resolvePerplexityApiKey(search: SearchConfig | undefined): string | undefined {
-  return resolveSecret(search?.perplexity?.apiKey) || process.env.PERPLEXITY_API_KEY?.trim() || process.env.OPENROUTER_API_KEY?.trim() || undefined;
+  return resolveEnvSecret(search?.perplexity?.apiKey) || getEnvKey("PERPLEXITY_API_KEY") || getEnvKey("OPENROUTER_API_KEY") || undefined;
 }
 
 function resolveBochaApiKey(openclawConfig?: OpenClawSearchCompat, pluginKey?: string): string | undefined {
@@ -79,7 +67,7 @@ function resolveBochaApiKey(openclawConfig?: OpenClawSearchCompat, pluginKey?: s
     const key = bochaEntry?.apiKey;
     if (typeof key === "string" && key.trim()) return key.trim();
   }
-  return process.env.BOCHA_API_KEY?.trim() || undefined;
+  return getEnvKey("BOCHA_API_KEY") || undefined;
 }
 
 // --- Provider auto-detection ---
