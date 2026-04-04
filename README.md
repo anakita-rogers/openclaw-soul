@@ -78,10 +78,10 @@ Soul stores its data in `~/.openclaw/soul/`:
 
 ## Installation
 
-### From npm (recommended)
+### From ClawHub (recommended)
 
 ```bash
-openclaw plugins install openclaw-soul-plugin
+openclaw plugins install clawhub:openclaw-soul-plugin
 ```
 
 ### From source
