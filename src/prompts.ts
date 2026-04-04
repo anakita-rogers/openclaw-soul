@@ -483,12 +483,16 @@ Please identify:
 Only output the analysis, no need to generate thoughts.`;
 
 export function buildUserInsightPrompt(userText: string, existingFacts: UserFact[]): string {
+  const existingInfo = existingFacts.length > 0
+    ? existingFacts.map((f) => `- [${f.category}] ${f.content}`).join("\n")
+    : "none";
+
   return `Analyze user input and extract useful information:
 
 **User input**: ${userText}
 
 **Known user information**:
-${existingFacts.map((f) => `- [${f.category}] ${f.content}`).join("\n") || "none"}
+${existingInfo}
 
 Please identify:
 1. Any new user facts that can be recorded (e.g., interests, work, habits, etc.)
@@ -500,7 +504,7 @@ Output in JSON format:
   "newFacts": [{"category": "string", "content": "string", "confidence": 0-1, "source": "explicit|inferred"}],
   "newPreferences": [{"aspect": "string", "preference": "string", "confidence": 0-1}],
   "importantForFuture": "string | null"
-`};
+}`;
 }
 
 function buildKnowledgeDescription(
