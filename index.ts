@@ -271,6 +271,9 @@ const plugin = {
         if (text.length >= 5) {
           await thoughtService.recordInteractionWithText({ type: "inbound", text });
           await thoughtService.extractUserFacts(text);
+          await thoughtService.extractUserPreferences(text).catch((err) =>
+            log.warn(`User preference extraction failed: ${String(err)}`),
+          );
         } else {
           await thoughtService.recordInteraction({ type: "inbound" });
         }

@@ -27,7 +27,7 @@ async function callAnthropic(
     },
     body: JSON.stringify({
       model,
-      max_tokens: 150,
+      max_tokens: 300,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -55,7 +55,7 @@ async function callOpenAICompatible(
     },
     body: JSON.stringify({
       model,
-      max_tokens: 150,
+      max_tokens: 300,
       messages: [{ role: "user", content: prompt }],
     }),
   });

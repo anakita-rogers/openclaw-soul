@@ -9,6 +9,7 @@ import type {
   SoulMemory,
   MetricDelta,
   BehaviorEntry,
+  Goal,
 } from "./types.js";
 import type { LLMGenerator } from "./soul-llm.js";
 import type { MessageSender } from "./soul-actions.js";
@@ -502,6 +503,23 @@ async function executeCreateGoal(
   const { actionParams } = thought;
   const goalTitle = (actionParams?.title as string) || "exploring new things";
   const goalDesc = (actionParams?.description as string) || "set a new goal to pursue";
+
+  const goal: Goal = {
+    id: randomBytes(4).toString("hex"),
+    title: goalTitle,
+    description: goalDesc,
+    progress: 0,
+    status: "active",
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  await updateEgoStore(resolveEgoStorePath(), (ego) => {
+    ego.goals.push(goal);
+    return ego;
+  });
+
+  log.info(`Created and persisted goal: ${goalTitle}`);
 
   return {
     result: {

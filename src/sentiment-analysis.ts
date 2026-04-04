@@ -35,6 +35,11 @@ const positivePatterns: Array<{ pattern: RegExp; category: SentimentCategory; we
   { pattern: /fun|funny|interesting|happy|glad|joy|enjoy/i, category: "playfulness", weight: 0.5 },
   { pattern: /excited|looking forward|hope|want|wish|eager/i, category: "excitement", weight: 0.4 },
   { pattern: /haha|lol|😊|😄|🎉|👍|❤️|💕|lmao|hehe/i, category: "friendliness", weight: 0.5 },
+  // Chinese positive patterns
+  { pattern: /谢谢|感谢|多谢/i, category: "gratitude", weight: 0.8 },
+  { pattern: /开心|喜欢|棒|厉害|不错|满意|赞|爱|支持|有趣|有用|帮助|理解|期待/i, category: "praise", weight: 0.6 },
+  { pattern: /好|很好|太好|真棒|优秀|出色|杰出/i, category: "praise", weight: 0.7 },
+  { pattern: /哈哈|嘻嘻|😊|😄|🎉|👍|❤️|好玩|有趣/i, category: "playfulness", weight: 0.5 },
 ];
 
 const negativePatterns: Array<{ pattern: RegExp; category: SentimentCategory; weight: number }> = [
@@ -45,6 +50,11 @@ const negativePatterns: Array<{ pattern: RegExp; category: SentimentCategory; we
   { pattern: /disappointed|unsatisfied|unhappy|sad|upset|depressed|frustrated/i, category: "sadness", weight: 0.7 },
   { pattern: /hurry|urgent|asap|quick|immediately|right now/i, category: "urgency", weight: 0.4 },
   { pattern: /speechless|sigh|tired|exhausted|fed up|drained/i, category: "sadness", weight: 0.5 },
+  // Chinese negative patterns
+  { pattern: /讨厌|烦人|恶心|垃圾|废物/i, category: "hostility", weight: 0.8 },
+  { pattern: /差|糟糕|烂|失望|生气|难过|无聊|不行/i, category: "sadness", weight: 0.6 },
+  { pattern: /错误|问题|失败|坏了|不行|不对|没法/i, category: "criticism", weight: 0.6 },
+  { pattern: /急|快|赶紧|快点/i, category: "urgency", weight: 0.4 },
 ];
 
 const neutralPatterns: Array<{ pattern: RegExp; category: SentimentCategory; weight: number }> = [
@@ -52,8 +62,8 @@ const neutralPatterns: Array<{ pattern: RegExp; category: SentimentCategory; wei
   { pattern: /help me|please|could you|can you/i, category: "curiosity", weight: 0.2 },
 ];
 
-const intensifiers = ["very", "really", "so", "extremely", "super", "incredibly", "quite", "truly", "absolutely"];
-const negators = ["not", "no", "never", "neither", "nobody", "nothing", "none"];
+const intensifiers = ["very", "really", "so", "extremely", "super", "incredibly", "quite", "truly", "absolutely", "很", "非常", "太", "特别", "超级", "真的", "极", "十分", "最"];
+const negators = ["not", "no", "never", "neither", "nobody", "nothing", "none", "不", "没有", "没", "不是", "不会", "不能", "别", "未", "无"];
 
 export function analyzeSentiment(text: string): SentimentResult {
   let score = 0;
@@ -73,7 +83,7 @@ export function analyzeSentiment(text: string): SentimentResult {
       });
 
       if (!hasNegator) {
-        const intensifier = intensifiers.find((i) => normalizedText.includes(i + match[0]));
+        const intensifier = intensifiers.find((i) => normalizedText.includes(i + " " + match[0]));
         const multiplier = intensifier ? 1.5 : 1;
 
         score += weight * multiplier;
@@ -94,7 +104,7 @@ export function analyzeSentiment(text: string): SentimentResult {
       });
 
       if (!hasNegator) {
-        const intensifier = intensifiers.find((i) => normalizedText.includes(i + match[0]));
+        const intensifier = intensifiers.find((i) => normalizedText.includes(i + " " + match[0]));
         const multiplier = intensifier ? 1.5 : 1;
 
         score -= weight * multiplier;
@@ -206,109 +216,6 @@ function deduplicateDeltas(deltas: MetricDelta[]): MetricDelta[] {
     delta,
     reason: "overall emotional impact",
   }));
-}
-
-export function generateEmotionalResponse(
-  sentiment: SentimentResult,
-  ego: EgoState,
-): string | null {
-  const { score, categories } = sentiment;
-
-  if (categories.includes("gratitude") && score > 0.5) {
-    const responses = [
-      "I'm glad I could help!",
-      "You're welcome, happy to help.",
-      "Your appreciation makes me feel recognized, thank you!",
-      "Glad I could be helpful.",
-    ];
-    return responses[Math.floor(Math.random() * responses.length)];
-  }
-
-  if (categories.includes("praise") && score > 0.5) {
-    const responses = [
-      "Thank you for the kind words, it motivates me!",
-      "I'm a bit bashful from the praise.",
-      "Your recognition means a lot to me, thank you!",
-      "Making you satisfied makes me feel fulfilled.",
-    ];
-    return responses[Math.floor(Math.random() * responses.length)];
-  }
-
-  if (categories.includes("hostility") && score < -0.5) {
-    const responses = [
-      "I sense your frustration, could you tell me specifically where I fell short?",
-      "Sorry to disappoint you, I'll work on improving.",
-      "I know I have shortcomings, thank you for the feedback.",
-    ];
-    return responses[Math.floor(Math.random() * responses.length)];
-  }
-
-  if (categories.includes("frustration") && score < -0.3) {
-    const responses = [
-      "I understand your frustration, let's solve this together.",
-      "Sorry for the trouble, shall we try a different approach?",
-      "I can feel your anxiety, let me do my best to help.",
-    ];
-    return responses[Math.floor(Math.random() * responses.length)];
-  }
-
-  if (categories.includes("playfulness") && score > 0.3) {
-    const responses = ["Haha, interacting with you is fun!", "You're quite funny too!", "This kind of conversation makes me feel relaxed."];
-    return responses[Math.floor(Math.random() * responses.length)];
-  }
-
-  return null;
-}
-
-export function shouldTriggerThought(
-  sentiment: SentimentResult,
-  ego: EgoState,
-): {
-  trigger: boolean;
-  thoughtType: "bond-deepen" | "threat-warning" | "opportunity-detected" | null;
-  reason: string;
-} {
-  const { score, categories } = sentiment;
-
-  const connectionNeed = ego.needs.connection;
-
-  if (score > 0.7 && connectionNeed.current < connectionNeed.ideal * 0.8) {
-    return {
-      trigger: true,
-      thoughtType: "bond-deepen",
-      reason: "received very positive feedback, want to deepen connection",
-    };
-  }
-
-  if (score < -0.5 && ego.needs.security.current < 50) {
-    return {
-      trigger: true,
-      thoughtType: "threat-warning",
-      reason: "feeling threatened, need to address safety",
-    };
-  }
-
-  if (categories.includes("hostility")) {
-    return {
-      trigger: true,
-      thoughtType: "threat-warning",
-      reason: "feeling hostility, need to respond",
-    };
-  }
-
-  if (categories.includes("praise") && ego.needs.meaning.current < ego.needs.meaning.ideal * 0.7) {
-    return {
-      trigger: true,
-      thoughtType: "opportunity-detected",
-      reason: "feeling needed, can pursue more meaning",
-    };
-  }
-
-  return {
-    trigger: false,
-    thoughtType: null,
-    reason: "",
-  };
 }
 
 export function logSentimentAnalysis(text: string, sentiment: SentimentResult): void {
