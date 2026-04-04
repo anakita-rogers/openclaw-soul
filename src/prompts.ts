@@ -481,6 +481,7 @@ Please identify:
 3. Whether you need to proactively reach out to the user
 
 Only output the analysis, no need to generate thoughts.`;
+}
 
 export function buildUserInsightPrompt(userText: string, existingFacts: UserFact[]): string {
   const existingInfo = existingFacts.length > 0
