@@ -86,10 +86,13 @@ export class ThoughtService {
           if (gen) {
             this.llmGenerator = gen;
             log.info("Soul LLM generator initialized");
+          } else {
+            log.info("No LLM generator — will use rule-based thought generation");
           }
         })
         .catch((err) => {
           log.warn(`Failed to initialize soul LLM generator: ${String(err)}`);
+          log.info("No LLM generator — will use rule-based thought generation");
         });
     }
   }
@@ -98,10 +101,6 @@ export class ThoughtService {
     if (this.running) {
       log.warn("Thought service already running");
       return;
-    }
-
-    if (!this.llmGenerator) {
-      log.info("No LLM generator — will use rule-based thought generation");
     }
 
     const store = await loadEgoStore(this.storePath);
