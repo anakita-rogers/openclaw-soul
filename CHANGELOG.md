@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.0 (2026-04-04)
+
+### Changes
+
+- Goal persistence: `create-goal` action now saves goals to ego store instead of discarding them
+- Chinese sentiment analysis: added Chinese word patterns for positive/negative/negators/intensifiers
+- User preference extraction: wired up `extractUserPreferences` in message hooks (was dead code)
+
+### Fixes
+
+- Fixed intensifier proximity bug — "very helpful" now correctly detected (was missing space)
+- Increased LLM `max_tokens` from 150 to 300 to prevent truncated thought generation
+- Removed unused functions `generateEmotionalResponse` and `shouldTriggerThought`
+
 ## 1.1.0 (2026-04-01)
 
 ### Changes
