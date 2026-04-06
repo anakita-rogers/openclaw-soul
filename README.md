@@ -78,18 +78,19 @@ Soul stores its data in `~/.openclaw/soul/`:
 
 ## Installation
 
-### From ClawHub (recommended)
-
-```bash
-openclaw plugins install clawhub:openclaw-soul-plugin
-```
-
-### From source
+### From source (recommended)
 
 ```bash
 git clone https://github.com/tommyguolin/openclaw-soul.git
-cd openclaw-soul
-openclaw plugins install .
+openclaw plugins install ./openclaw-soul
+```
+
+### From ClawHub
+
+> **Note:** Requires OpenClaw 2026.4.0 or later. Older versions do not support the `clawhub:` install prefix.
+
+```bash
+openclaw plugins install clawhub:openclaw-soul-plugin
 ```
 
 ## Configuration
