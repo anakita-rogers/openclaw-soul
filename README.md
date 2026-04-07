@@ -102,6 +102,13 @@ plugins:
   soul:
     enabled: true
 
+# Required: enable gateway chat completions endpoint (disabled by default)
+gateway:
+  http:
+    endpoints:
+      chatCompletions:
+        enabled: true
+
 # Required for proactive messaging (Soul sending messages to you)
 hooks:
   enabled: true
@@ -130,6 +137,13 @@ plugins:
     #   model: gpt-4o
     #   apiKeyEnv: OPENAI_API_KEY
     #   baseUrl: https://api.openai.com/v1
+
+# Required: enable gateway chat completions endpoint (disabled by default)
+gateway:
+  http:
+    endpoints:
+      chatCompletions:
+        enabled: true
 
 # Required for proactive messaging (Soul sending messages to you)
 hooks:
