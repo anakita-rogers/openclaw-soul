@@ -95,24 +95,33 @@ openclaw plugins install clawhub:openclaw-soul-plugin
 
 ## Configuration
 
-Add to your `openclaw.yaml`:
+Edit `~/.openclaw/openclaw.json`:
 
-```yaml
-plugins:
-  soul:
-    enabled: true
+```jsonc
+{
+  "plugins": {
+    "soul": {
+      "enabled": true
+    }
+  },
 
-# Required: enable gateway chat completions endpoint (disabled by default)
-gateway:
-  http:
-    endpoints:
-      chatCompletions:
-        enabled: true
+  // Required: enable gateway chat completions endpoint (disabled by default)
+  "gateway": {
+    "http": {
+      "endpoints": {
+        "chatCompletions": {
+          "enabled": true
+        }
+      }
+    }
+  },
 
-# Required for proactive messaging (Soul sending messages to you)
-hooks:
-  enabled: true
-  token: "your-secret-token-here"  # Any random string (e.g. openssl rand -hex 32)
+  // Required for proactive messaging (Soul sending messages to you)
+  "hooks": {
+    "enabled": true,
+    "token": "your-secret-token-here"  // Any random string (e.g. openssl rand -hex 32)
+  }
+}
 ```
 
 That's it — Soul auto-detects everything else:
@@ -124,31 +133,41 @@ That's it — Soul auto-detects everything else:
 
 ### Full Configuration Options
 
-```yaml
-plugins:
-  soul:
-    enabled: true                    # Enable/disable (default: true)
-    checkIntervalMs: 60000           # Thought check interval in ms (default: 60000)
-    proactiveMessaging: true         # Allow proactive messages (default: true)
-    # proactiveChannel: telegram     # Override: channel for proactive messages
-    # proactiveTarget: "123456"      # Override: target for proactive messages
-    # llm:                           # Override: LLM config (auto-detected if omitted)
-    #   provider: openai
-    #   model: gpt-4o
-    #   apiKeyEnv: OPENAI_API_KEY
-    #   baseUrl: https://api.openai.com/v1
+```jsonc
+{
+  "plugins": {
+    "soul": {
+      "enabled": true,                  // Enable/disable (default: true)
+      "checkIntervalMs": 60000,         // Thought check interval in ms (default: 60000)
+      "proactiveMessaging": true,       // Allow proactive messages (default: true)
+      // "proactiveChannel": "telegram",  // Override: channel for proactive messages
+      // "proactiveTarget": "123456",     // Override: target for proactive messages
+      // "llm": {                         // Override: LLM config (auto-detected if omitted)
+      //   "provider": "openai",
+      //   "model": "gpt-4o",
+      //   "apiKeyEnv": "OPENAI_API_KEY",
+      //   "baseUrl": "https://api.openai.com/v1"
+      // }
+    }
+  },
 
-# Required: enable gateway chat completions endpoint (disabled by default)
-gateway:
-  http:
-    endpoints:
-      chatCompletions:
-        enabled: true
+  // Required: enable gateway chat completions endpoint (disabled by default)
+  "gateway": {
+    "http": {
+      "endpoints": {
+        "chatCompletions": {
+          "enabled": true
+        }
+      }
+    }
+  },
 
-# Required for proactive messaging (Soul sending messages to you)
-hooks:
-  enabled: true
-  token: "your-secret-token-here"   # Any random string (e.g. openssl rand -hex 32)
+  // Required for proactive messaging (Soul sending messages to you)
+  "hooks": {
+    "enabled": true,
+    "token": "your-secret-token-here"   // Any random string (e.g. openssl rand -hex 32)
+  }
+}
 ```
 
 ### Environment Variables
