@@ -4,15 +4,56 @@ An autonomous thinking, emotional awareness, and memory system for [OpenClaw](ht
 
 Soul gives your OpenClaw instance an inner life: it generates its own thoughts, remembers conversations, learns from the web, and can proactively reach out to you. It has its own needs, fears, desires, and personality that evolve over time.
 
-## What It Does
+## Core Features
 
-- **Autonomous Thinking** — Soul continuously generates thoughts based on its emotional state, recent conversations, and time of day. It doesn't just respond — it initiates.
-- **Emotional Awareness** — Soul has a "small ego" (小我) with five core needs: survival, connection, growth, meaning, and security. When needs drop, Soul takes action to restore balance.
-- **Long-term Memory** — Soul remembers your conversations, your preferences, and what it has learned. It uses this context to provide better, more personalized responses.
-- **Web Learning** — Soul can search the web and learn about topics on its own. Learned knowledge is injected into OpenClaw's system prompt so the main agent can use it.
-- **Proactive Messaging** — Soul can initiate conversations when it hasn't heard from you in a while, when it learns something interesting, or when it notices you had an unresolved question.
-- **Behavior Evolution** — Soul learns from the outcomes of its own actions. When a proactive message gets a reply, it increases future messaging probability. When web searches consistently yield useful knowledge, it searches more often. Over time, Soul adapts its behavior to what works.
-- **Awakening Process** — Soul isn't born fully formed. It goes through an awakening sequence (unborn → stirring → self-aware → awakened) before developing its full personality.
+### Autonomous Thought Generation
+
+Soul doesn't just respond — it **thinks on its own**. A background thought service continuously generates thoughts based on:
+
+- **Conversation context** — Replays past conversations to find unresolved questions, topics worth following up on, or insights to share
+- **Emotional state** — Five core needs (survival, connection, growth, meaning, security) drive what Soul thinks about. When a need drops, Soul generates thoughts to restore balance
+- **User interests** — Extracts topics from conversations and proactively learns about them
+
+The thought frequency is **adaptive**, not mechanical:
+- **Active conversation with substantive topics** → thoughts every 8-12 minutes
+- **Casual / test messages with little substance** → thoughts every 25-40 minutes
+- **User away for over an hour** → thoughts every 20-45 minutes
+- **Never during active conversation** — thoughts are paused while you're chatting
+
+Thought types include: `learn-topic`, `search-web`, `send-message`, `self-reflect`, `bond-deepen`, `help-offer`, `meaning-quest`, `existential-reflection`, and more. Soul picks the most relevant type based on context, not random selection.
+
+### Proactive Messaging
+
+Soul can **reach out to you first** when it has something genuinely valuable to share:
+
+- Found an answer to a question you asked earlier
+- Learned something relevant to your interests or projects
+- Discovered a better solution to a problem you discussed
+
+Every proactive message goes through a **value gate**:
+1. LLM evaluates whether the content is genuinely worth sharing
+2. Generic small talk ("just checking in", "I was thinking about...") is filtered out
+3. Only specific, useful insights pass through
+
+Messages respect quiet hours (23:00-08:00), have a 15-minute cooldown, and won't send again if you haven't responded to the previous one.
+
+### Content-Aware Intelligence
+
+Soul understands the difference between meaningful and trivial content:
+
+- **Smart question detection** — Distinguishes genuine questions from test messages, exclamations, and meta-remarks about the bot itself
+- **Search quality filter** — Won't search the web for meaningless content like "test successful" or "why do you keep saying that"
+- **Search deduplication** — Won't repeat the same search query within 6 hours
+- **Language awareness** — Detects your language (Chinese, English, Japanese, Korean) and matches it in all responses
+
+### Long-term Memory
+
+Soul remembers your conversations, your preferences, and what it has learned:
+
+- **Interaction memory** with emotional context and topic tags
+- **Knowledge store** from web search and self-reflection
+- **User profile** built from facts, preferences, and conversation history
+- **Memory lifecycle**: creation → association → consolidation → decay → expiry
 
 ## How It Works
 
@@ -28,53 +69,27 @@ Soul gives your OpenClaw instance an inner life: it generates its own thoughts, 
            ▼                      ▼
 ┌─────────────────────┐  ┌───────────────────────┐
 │   Thought Service    │  │   System Prompt       │
-│   (periodic tick)    │  │   Injection           │
+│   (adaptive tick)    │  │   Injection           │
 │                      │  │                       │
-│  1. Detect needs     │  │  • Current needs      │
-│  2. Generate thought │  │  • Goals & desires    │
-│  3. Execute action   │  │  • User facts         │
-│     - learn-topic    │  │  • Relevant memories  │
-│     - search-web     │  │  • Learned knowledge  │
-│     - send-message   │  │  • Recent activity    │
-│     - self-reflect   │  │  • Personality        │
+│  1. Compute          │  │  • Current needs      │
+│     engagement score │  │  • Goals & desires    │
+│  2. Generate thought │  │  • User facts         │
+│  3. Execute action   │  │  • Relevant memories  │
+│     - learn-topic    │  │  • Learned knowledge  │
+│     - search-web     │  │  • Recent activity    │
+│     - send-message   │  │  • Personality        │
+│     - self-reflect   │  │                       │
 └─────────────────────┘  └───────────────────────┘
 ```
 
-### Core Concepts
+### Thought Flow
 
-| Concept | Description |
-|---------|-------------|
-| **Ego State** | Soul's inner state: needs, fears, desires, goals, memories, personality traits |
-| **Thought** | A generated idea with a type, trigger, motivation, priority, and optional action |
-| **Action** | What Soul does with a thought: learn, search, message, reflect |
-| **Knowledge Store** | Persistent learned knowledge (from web search and reflection) |
-| **Memory** | Events, interactions, insights stored with emotional context |
-| **Behavior Log** | Tracks action outcomes and adjusts future action probabilities |
-| **Awakening** | Gradual self-awareness process when Soul first starts |
-
-### Thought Types
-
-Soul generates thoughts of different types depending on context:
-
-- **opportunity-detected** — Found a chance to improve something
-- **bond-deepen** — Wants to strengthen connection with the user
-- **help-offer** — Noticed an unresolved question or problem
-- **learn-topic** — Wants to learn about a topic
-- **search-web** — Wants to search the web for information
-- **existential-reflection** — Reflecting on its own existence
-- **meaning-quest** — Searching for meaning and purpose
-- **threat-warning** — Perceiving a threat to its needs
-- **memory-resurface** — A past memory came to mind
-
-### Data Storage
-
-Soul stores its data in `~/.openclaw/soul/`:
-
-```
-~/.openclaw/soul/
-├── ego.json          # Full ego state (needs, memories, goals, etc.)
-└── knowledge.json    # Learned knowledge items
-```
+1. **Engagement scoring** — Soul computes how actively engaged the user is (recent interactions, content substance, question quality)
+2. **Adaptive interval** — Higher engagement → more frequent thoughts; low engagement → less frequent
+3. **Opportunity detection** — Scans conversations for unresolved questions, interesting topics, user challenges
+4. **Thought generation** — LLM generates a contextual thought (or rule-based fallback if no LLM)
+5. **Action execution** — Thought may trigger an action: learn a topic, search the web, send a message, or reflect
+6. **Behavior learning** — Soul tracks action outcomes and adjusts future behavior based on success rates
 
 ## Installation
 
@@ -95,10 +110,11 @@ openclaw plugins install clawhub:openclaw-soul-plugin
 
 ## Configuration
 
-Edit `~/.openclaw/openclaw.json`:
+Edit `~/.openclaw/openclaw.json` (JSON5 format):
 
 ```jsonc
 {
+  // Required: enable soul plugin
   "plugins": {
     "soul": {
       "enabled": true
@@ -106,6 +122,7 @@ Edit `~/.openclaw/openclaw.json`:
   },
 
   // Required: enable gateway chat completions endpoint (disabled by default)
+  // Soul uses this to call LLM for thought generation
   "gateway": {
     "http": {
       "endpoints": {
@@ -151,7 +168,7 @@ That's it — Soul auto-detects everything else:
     }
   },
 
-  // Required: enable gateway chat completions endpoint (disabled by default)
+  // Required: enable gateway chat completions endpoint
   "gateway": {
     "http": {
       "endpoints": {
@@ -162,10 +179,10 @@ That's it — Soul auto-detects everything else:
     }
   },
 
-  // Required for proactive messaging (Soul sending messages to you)
+  // Required for proactive messaging
   "hooks": {
     "enabled": true,
-    "token": "your-secret-token-here"   // Any random string (e.g. openssl rand -hex 32)
+    "token": "your-secret-token-here"
   }
 }
 ```
@@ -214,8 +231,8 @@ openclaw-soul/
 └── src/
     ├── types.ts             # TypeScript type definitions
     ├── thought-service.ts   # Core thought generation & scheduling
-    ├── thought.ts           # Thought generation rules & weights
-    ├── intelligent-thought.ts  # Context-aware thought detection
+    ├── thought.ts           # Thought weights & adaptive frequency
+    ├── intelligent-thought.ts  # Context-aware thought & opportunity detection
     ├── action-executor.ts   # Executes thought actions (learn, search, etc.)
     ├── behavior-log.ts      # Tracks action outcomes & adjusts probabilities
     ├── prompts.ts           # System prompt builder
@@ -228,7 +245,7 @@ openclaw-soul/
     ├── soul-llm.ts          # LLM provider abstraction
     ├── soul-search.ts       # Multi-provider web search
     ├── expiry.ts            # Memory/knowledge/facts cleanup
-    ├── awakening.ts         # Awakening sequence
+    ├── awakening.ts         # Awakening sequence (legacy, skipped by default)
     ├── growth-decay.ts      # Need decay & growth calculations
     ├── obsession-formation.ts # Obsession formation logic
     ├── self-maintenance.ts  # Self-maintenance routines
@@ -239,7 +256,7 @@ openclaw-soul/
 ## Development
 
 ```bash
-# Install dependencies (none required — uses only Node.js built-ins)
+# Install dependencies (zero runtime deps — uses only Node.js built-ins)
 pnpm install
 
 # Build
@@ -256,56 +273,6 @@ Set `SOUL_DEBUG=1` to see detailed thought generation logs:
 ```bash
 OPENCLAW_STATE_DIR=/tmp/soul-debug SOUL_DEBUG=1 openclaw gateway run
 ```
-
-## Behavior Details
-
-### Thought Frequency
-
-- **During active conversation** (last message < 3 min): No thoughts generated
-- **Normal idle** (user present): Thoughts every ~10-15 minutes
-- **User away** (> 30 min): Thoughts every ~30 minutes
-- **Urgent needs**: More frequent thoughts when needs are critically low
-
-### Learning
-
-Soul learns by:
-1. **Web search** — Searches for topics related to user interests or its own curiosity
-2. **LLM reflection** — When no search provider is available, reflects internally
-3. **Conversation** — Extracts user facts and preferences from conversations
-
-Learned knowledge is always injected into the system prompt (top 3 most recent + context-matched items).
-
-### Memory Lifecycle
-
-1. **Creation** — Events are stored with emotional context and importance score
-2. **Association** — New memories are linked to related existing memories
-3. **Consolidation** — Frequently accessed short-term memories become long-term
-4. **Decay** — Unimportant memories lose importance over time
-5. **Expiry** — Memories with importance < 0.4 and no access in 30 days are removed
-
-### Proactive Messaging
-
-Soul sends proactive messages when:
-- It hasn't interacted with the user in over an hour
-- It learned something it thinks the user would find interesting
-- It noticed an unresolved question from a previous conversation
-- Its connection need is low and it wants to engage
-
-Messages have a 30-minute cooldown to avoid spam.
-
-### Behavior Evolution
-
-Soul doesn't just repeat the same patterns — it learns from results:
-
-1. **Action tracking** — Every action (send message, learn topic, search web) is logged with its type, time, and current need state
-2. **Outcome resolution** — When you reply to a proactive message, that action is marked "success"; if no response comes within 2 hours, it's marked "expired"
-3. **Success rate calculation** — Soul maintains per-action success rates over a 14-day lookback window, with time-of-day awareness (morning/afternoon/evening/night bands)
-4. **Probability adjustment** — Action probabilities are dynamically adjusted based on success rates:
-   - High success rate → probability increased up to 1.5x
-   - Low success rate → probability decreased down to 0.15x
-   - Time-of-day patterns are weighted more heavily than overall rates
-
-This means Soul naturally adapts: if proactive messages consistently get replies in the evening but not the morning, it learns to message you in the evening.
 
 ## License
 

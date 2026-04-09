@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.7.0 (2026-04-09)
+
+### Changes
+
+- **Adaptive thought frequency**: Thoughts are no longer generated at a fixed 5-minute interval. Soul now computes an engagement score based on interaction recency, frequency, and content substance, then adjusts thought intervals accordingly: 8-12 min for active substantive conversations, 25-40 min for casual/test messages, 20-45 min when user is away. Includes natural jitter to avoid mechanical patterns
+- **Smart content filtering**: Soul now distinguishes genuine questions from test messages, exclamations, meta-remarks about the bot, and other non-searchable content. Messages like "测试成功" or "为啥你一直在说收到" are no longer treated as questions worth searching
+- **Search query deduplication**: Soul tracks recent search queries in memory and skips duplicate or near-duplicate searches within a 6-hour window
+- **Skip awakening ceremony**: New installations now start directly in the `awakened` state instead of going through the unborn → stirring → self-aware → awakened sequence. Existing installations stuck in awakening for over 30 minutes are auto-promoted to awakened
+- **Reduced search-web priority**: Lowered search-web thought weight from 60/35 to 30/15, making it less dominant compared to more user-valuable actions like send-message and learn-topic
+- **Tightened follow-up timing**: Simple conversation follow-up now waits 15 minutes (was 5) to avoid annoying responses to test messages
+
 ## 1.6.0 (2026-04-07)
 
 ### Changes

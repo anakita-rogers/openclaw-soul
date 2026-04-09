@@ -305,6 +305,61 @@ function buildUserProfile(ego: EgoState): {
 }
 
 /**
+ * Determine whether a user message contains content worth searching the web for.
+ * Filters out test messages, greetings, meta-questions about the bot, exclamations,
+ * and other non-searchable content.
+ */
+function isSearchableContent(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length < 10) return false;
+
+  const lower = trimmed.toLowerCase();
+
+  // Test / debug messages
+  if (/^(测试|test|ping|pong|hello|hi$|hey|收到|好的|ok|确认|嗯|啊|哦|嗨|你好|哈+)/i.test(lower)) return false;
+  if (/测试成功|测试一下|test\s*(success|ok|pass)/i.test(lower)) return false;
+
+  // Meta-questions about the bot itself
+  if (/你(怎么|为什么|为啥).{0,6}(说|做|回答|回复|一直|总是)/i.test(lower)) return false;
+  if (/你(能|可以|会不会|是不是).{0,6}(收到|听到|看到|明白|懂)/i.test(lower)) return false;
+  if (/(why|how).{0,10}(are you|do you|you keep|you always)/i.test(lower)) return false;
+
+  // Pure exclamations (no question structure)
+  if (/^[^?？]*[!！]+$/.test(trimmed)) return false;
+  if (/^[哈嘿哦嗯啊]+[!！~～]*$/.test(trimmed)) return false;
+
+  // Greetings / small talk
+  if (/^(早上?好|晚上?好|早安|晚安|中午好|下午好|good morning|good evening|good night)/i.test(lower)) return false;
+
+  // Very short exclamatory sentences with just a question mark (e.g. "测试！？")
+  if (trimmed.length < 20 && /[!！]+[?？]/.test(trimmed)) return false;
+
+  return true;
+}
+
+/**
+ * Determine whether a user message is a genuine question worth following up on.
+ * Stricter than isSearchableContent — requires actual question structure.
+ */
+function isGenuineQuestion(text: string): boolean {
+  if (!isSearchableContent(text)) return false;
+
+  const trimmed = text.trim();
+  const lower = trimmed.toLowerCase();
+
+  // Must contain a question mark OR a question word
+  const hasQuestionMark = /[?？]/.test(trimmed);
+  const hasQuestionWord =
+    /^(how|what|why|when|where|who|which|can you|could you|is there|are there|do you know)/i.test(lower) ||
+    /(怎么|如何|为什么|为啥|哪[里个种]|什么|什么时候|有没有|能不能|可以|是否)/.test(lower);
+
+  // Check that the question has enough substance (not just a tag question)
+  const substance = trimmed.replace(/[?？！!。，,.\s]/g, "").length;
+
+  return (hasQuestionMark || hasQuestionWord) && substance >= 6;
+}
+
+/**
  * Analyze conversations and user profile to generate opportunities for
  * sharing value. This is Soul's core differentiator:
  *
@@ -343,17 +398,13 @@ function analyzeConversationReplay(ctx: ThoughtGenerationContext): DetectedThoug
 
   // =====================================================
   // 1. Unresolved questions — search for answers or share what was found
+  //    Only considers genuine questions with substance, filtered by
+  //    isGenuineQuestion() to avoid searching for test messages, greetings,
+  //    meta-questions, etc.
   // =====================================================
-  const questionPatterns = [
-    /\?|？/, "how", "what", "why", "can you", "could", "help", "problem",
-    "怎么", "如何", "为什么", "能不能", "可以", "帮忙", "问题", "有没有",
-  ];
-  const questionMemories = recentInteractions.filter((m) => {
-    const text = m.content.toLowerCase();
-    return questionPatterns.some((p) =>
-      typeof p === "string" ? text.includes(p) : p.test(text),
-    );
-  });
+  const questionMemories = recentInteractions.filter((m) =>
+    isGenuineQuestion(m.content),
+  );
 
   for (const qMem of questionMemories.slice(0, 2)) {
     const content = qMem.content.slice(0, 80);
@@ -378,31 +429,34 @@ function analyzeConversationReplay(ctx: ThoughtGenerationContext): DetectedThoug
         suggestedAction: "send-message",
       });
     } else {
-      opportunities.push({
-        type: "conversation-replay",
-        trigger: "memory",
-        triggerDetail: `User asked: "${content}" — no answer yet`,
-        priority: 70,
-        source: "user-interaction",
-        relatedNeeds: ["connection", "meaning"],
-        motivation: `User asked about "${content}" — I should search for the answer`,
-        suggestedAction: "search-web",
-        actionParams: { query: content.slice(0, 50) },
-      });
+      // Only create search-web if content is actually searchable (not meta/test/exclamation)
+      if (isSearchableContent(content)) {
+        opportunities.push({
+          type: "conversation-replay",
+          trigger: "memory",
+          triggerDetail: `User asked: "${content}" — no answer yet`,
+          priority: 70,
+          source: "user-interaction",
+          relatedNeeds: ["connection", "meaning"],
+          motivation: `User asked about "${content}" — I should search for the answer`,
+          suggestedAction: "search-web",
+          actionParams: { query: content.slice(0, 50) },
+        });
+      }
     }
   }
 
   // =====================================================
-  // 1b. Simple follow-up — when there are interactions (even short ones)
-  //     but no substantive content, generate a follow-up opportunity anyway.
-  //     This is the primary path for the "hello test" scenario.
+  // 1b. Simple follow-up — when there are interactions but no substantive
+  //     content was found. Only triggers after 15+ minutes to avoid
+  //     annoying the user with follow-ups to test messages.
   // =====================================================
   if (recentInteractions.length > 0 && opportunities.length === 0) {
     const lastInteraction = recentInteractions[0];
     const minutesSinceInteraction = (now - lastInteraction.timestamp) / (1000 * 60);
 
-    // After 5-60 minutes: simple follow-up with send-message
-    if (minutesSinceInteraction >= 5 && minutesSinceInteraction <= 60) {
+    // After 15-60 minutes: simple follow-up with send-message
+    if (minutesSinceInteraction >= 15 && minutesSinceInteraction <= 60) {
       const content = lastInteraction.content.slice(0, 80);
       opportunities.push({
         type: "conversation-replay",
@@ -518,6 +572,7 @@ function analyzeConversationReplay(ctx: ThoughtGenerationContext): DetectedThoug
 
   // =====================================================
   // 4. Challenge follow-up — if user had problems, check for solutions
+  //    Only searches if the challenge text is actually searchable.
   // =====================================================
   if (userProfile.challenges.length > 0) {
     const latestChallenge = userProfile.challenges[0];
@@ -529,7 +584,7 @@ function analyzeConversationReplay(ctx: ThoughtGenerationContext): DetectedThoug
         latestChallenge.split(/\s+/).some((word) => m.content.toLowerCase().includes(word.toLowerCase()) && word.length > 3),
     );
 
-    if (!hasRecentSearch) {
+    if (!hasRecentSearch && isSearchableContent(latestChallenge)) {
       const searchQuery = latestChallenge.slice(0, 50);
       opportunities.push({
         type: "conversation-replay",

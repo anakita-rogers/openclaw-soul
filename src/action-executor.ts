@@ -124,6 +124,10 @@ const ACTION_COOLDOWNS_MS: Record<ActionType, number> = {
 
 const lastActionTime: Record<string, number> = {};
 
+/** Track recent search queries to prevent repetitive searches */
+const recentSearchQueries: Map<string, number> = new Map();
+const SEARCH_DEDUP_MS = 6 * 60 * 60 * 1000; // 6 hours
+
 export interface ActionExecutorOptions {
   channel?: string;
   target?: string;
@@ -684,6 +688,26 @@ async function executeSearchWeb(
       metricsChanged: [],
     };
   }
+
+  // Dedup: skip if the same (or very similar) query was searched recently
+  const normalizedQuery = query.toLowerCase().trim().slice(0, 40);
+  const now = Date.now();
+  // Expire old entries
+  for (const [k, t] of recentSearchQueries) {
+    if (now - t > SEARCH_DEDUP_MS) recentSearchQueries.delete(k);
+  }
+  // Check for existing similar query (prefix match covers truncation differences)
+  const existingKey = [...recentSearchQueries.keys()].find(
+    (k) => k.startsWith(normalizedQuery.slice(0, 20)) || normalizedQuery.startsWith(k.slice(0, 20)),
+  );
+  if (existingKey) {
+    log.info(`Skipping duplicate search query: "${query}" (already searched)`);
+    return {
+      result: { type: "search-web", success: true, result: "skipped-duplicate" },
+      metricsChanged: [],
+    };
+  }
+  recentSearchQueries.set(normalizedQuery, now);
 
   const searchResults = await soulWebSearch(query, options.openclawConfig);
 

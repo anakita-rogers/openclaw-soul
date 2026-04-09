@@ -280,6 +280,13 @@ export class ThoughtService {
     let ego = store.ego;
 
     if (!isAwakeningComplete(ego)) {
+      // Safety net: if stuck in awakening for >30 min, skip to awakened
+      const birthTime = ego.birthTime ?? 0;
+      if (Date.now() - birthTime > 30 * 60 * 1000) {
+        log.info("Awakening stuck for >30 min, skipping to awakened");
+        const result = await progressAwakening(ego, "first-thought", "Quickening after long dormancy");
+        ego = result.ego;
+      } else {
       const awakeningThought = createAwakeningThought(ego);
       if (awakeningThought) {
         log.info(`Awakening thought: [${ego.awakeningStage}] ${awakeningThought.content}`);
@@ -335,6 +342,7 @@ export class ThoughtService {
         }
       }
       return;
+      } // end else (normal awakening path)
     }
 
     const ctx = {
