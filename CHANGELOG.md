@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.10.0 (2026-04-11)
+
+### Changes
+
+- **Block ego-state search queries**: Soul no longer searches for internal state descriptions like "安全 need could improve" or "connection need is low". These produced completely irrelevant results (campus safety, public transport). Queries >60 chars (full user messages) are also rejected as search input
+- **Fix goal tracking**: Goals were created with English titles ("Know the User", "Build Trust") but the tracking code checked for exact title matches, missing Chinese-titled goals ("了解用户", "建立信任"). Now uses stable goal IDs and fallback title matching so progress is tracked correctly regardless of language
+- **Share knowledge from conversation follow-ups**: When Soul learns something from following up on a user's actual topic (conversation-replay), the value gate now actively encourages sharing the finding instead of defaulting to NO_MESSAGE. This fixes the issue where Soul found relevant info (e.g. 李飞飞的"以人为本的AI") but never told the user
+
 ## 1.9.1 (2026-04-10)
 
 ### Fixes

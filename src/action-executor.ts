@@ -47,6 +47,28 @@ function isLLMErrorOutput(text: string): boolean {
   return LLM_ERROR_PATTERNS.some((p) => p.test(text));
 }
 
+/** Patterns that indicate a search query came from ego internal state, not user content. */
+const EGO_STATE_PATTERNS = [
+  /need (could improve|critically low|is low|is somewhat)/i,
+  /\b(ideal|current)\b.*\b(need|state)\b/i,
+  /\bneed\b.*\b(improve|low|high|gap)\b/i,
+  /survival|connection|growth|meaning|security/i,
+  /我(的|可以|应该|需要).{0,5}(需求|状态|提升|改善)/,
+];
+
+/**
+ * Check if a search query is polluted by ego internal state terminology.
+ * Queries like "安全 need could improve" or "connection need is low" are
+ * ego descriptions that produce irrelevant search results.
+ */
+function isEgoStateQuery(text: string): boolean {
+  if (!text) return true;
+  const trimmed = text.trim();
+  // Too long — likely a full user message verbatim
+  if (trimmed.length > 60) return true;
+  return EGO_STATE_PATTERNS.some((p) => p.test(trimmed));
+}
+
 /**
  * Truncate text at a sentence boundary (period, question mark, exclamation)
  * instead of cutting mid-sentence. Falls back to hard cut only if no
@@ -477,6 +499,9 @@ async function generateValuableMessage(
             ? "Current time: afternoon — good for technical or practical content"
             : "Current time: evening — lighter and more casual tone";
 
+      // Determine if this is a follow-up on a user's actual topic (vs. generic ego thought)
+      const isUserTopicFollowUp = thought.type === "conversation-replay" && recentKnowledge.length > 0;
+
       const prompt = `You are a proactive AI assistant. You must output ONLY a short message to send to the user, or NO_MESSAGE.
 
 ${langInstruction}
@@ -485,11 +510,13 @@ ${timeContext}
 **Context**:
 ${userInfo ? `User profile:\n${userInfo}\n` : ""}${interactionContext ? `Recent conversations:\n${interactionContext}\n` : ""}${knowledgeContext ? `Knowledge I've learned:\n${knowledgeContext}\n` : ""}${thought.type !== "bond-deepen" ? `Thought: ${thought.motivation}` : ""}
 
-**What counts as valuable** (only send if you have something like this):
+${isUserTopicFollowUp
+  ? `**IMPORTANT**: You just searched for or learned about a topic the user previously discussed. You SHOULD share your finding in 1-2 sentences. Reference the specific topic and what you found. Only say NO_MESSAGE if the knowledge is completely unrelated to what the user cares about.`
+  : `**What counts as valuable** (only send if you have something like this):
 - A specific insight related to something the user discussed
 - A useful tip or finding from web search or learning
 - An answer to a question the user previously asked
-- A relevant update on a topic the user cares about
+- A relevant update on a topic the user cares about`}
 
 **What does NOT count as valuable** (always say NO_MESSAGE):
 - Just saying hi, checking in, or "how are you"
@@ -511,6 +538,7 @@ ${userInfo ? `User profile:\n${userInfo}\n` : ""}${interactionContext ? `Recent 
 **Examples of GOOD output**:
 关于你之前问的Python异步问题，我查到asyncio.gather比TaskGroup更适合你那个场景。
 I found that the issue you mentioned with Docker networking is a known bug in version 24.0.
+关于你之前问的怎么让AI更主动，我查到李飞飞提出的"以人为本的AI"理念——强调AI应该主动理解人的需求而非被动响应。
 
 **Examples of BAD output (NEVER do this)**:
 Let me analyze whether...
@@ -602,6 +630,11 @@ async function executeLearnTopic(
     // Skip generic/meaningless topics that won't produce useful search results
     if (!isWorthSearching(topic)) {
       log.info(`Skipping meaningless learn-topic query: "${topic}"`);
+      continue;
+    }
+    // Skip ego internal state descriptions that produce irrelevant results
+    if (isEgoStateQuery(topic)) {
+      log.info(`Skipping ego-state query: "${topic}"`);
       continue;
     }
     const searchResults = await soulWebSearch(topic, options.openclawConfig);
@@ -703,6 +736,15 @@ async function executeSearchWeb(
     log.info(`Skipping meaningless search query: "${query}"`);
     return {
       result: { type: "search-web", success: true, result: "skipped-meaningless-query" },
+      metricsChanged: [],
+    };
+  }
+
+  // Skip ego internal state descriptions
+  if (isEgoStateQuery(query)) {
+    log.info(`Skipping ego-state search query: "${query}"`);
+    return {
+      result: { type: "search-web", success: true, result: "skipped-ego-state" },
       metricsChanged: [],
     };
   }

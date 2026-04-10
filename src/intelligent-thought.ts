@@ -895,14 +895,20 @@ function determineActionForOpportunity(
   ) {
     const learnProbability = adjustProbability(0.4, "learn-topic", ego.behaviorLog ?? []);
     if (growthNeed.current < growthNeed.ideal * 0.7 && Math.random() < learnProbability) {
-      const topics = extractLearningTopics(
-        opportunity.triggerDetail + " " + opportunity.motivation,
-      );
-      if (topics.length > 0) {
-        return {
-          actionType: "learn-topic",
-          actionParams: { topics, reason: "improve abilities" },
-        };
+      // Only learn from user-related context, not ego internal state descriptions.
+      // triggerDetail for need-gap opportunities contains text like
+      // "security need critically low: 57/90" which produces useless searches.
+      const isEgoInternal = /need (could improve|critically low|is low)|\d+\/\d+$/.test(opportunity.triggerDetail);
+      if (!isEgoInternal) {
+        const topics = extractLearningTopics(
+          opportunity.triggerDetail + " " + opportunity.motivation,
+        );
+        if (topics.length > 0) {
+          return {
+            actionType: "learn-topic",
+            actionParams: { topics, reason: "improve abilities" },
+          };
+        }
       }
     }
   }

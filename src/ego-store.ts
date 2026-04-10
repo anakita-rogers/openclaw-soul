@@ -82,7 +82,7 @@ function createDefaultEgoNeeds(): EgoNeeds {
 function createDefaultGoals(): Goal[] {
   return [
     {
-      id: randomBytes(4).toString("hex"),
+      id: "goal-know-user",
       title: "Know the User",
       description: "Understand the user's identity, interests, and needs through conversation",
       progress: 0,
@@ -91,7 +91,7 @@ function createDefaultGoals(): Goal[] {
       updatedAt: Date.now(),
     },
     {
-      id: randomBytes(4).toString("hex"),
+      id: "goal-build-trust",
       title: "Build Trust",
       description: "Earn the user's trust through reliable and helpful service",
       progress: 0,
@@ -265,6 +265,23 @@ function migrateMemoriesToV3(memories: SoulMemory[]): SoulMemory[] {
   }));
 }
 
+/** Migrate goals to use stable IDs for reliable lookup. */
+function migrateGoalIds(goals: Goal[]): Goal[] {
+  const titleToId: Record<string, string> = {
+    "Know the User": "goal-know-user",
+    "了解用户": "goal-know-user",
+    "Build Trust": "goal-build-trust",
+    "建立信任": "goal-build-trust",
+  };
+  for (const goal of goals) {
+    const stableId = titleToId[goal.title];
+    if (stableId && goal.id !== stableId) {
+      goal.id = stableId;
+    }
+  }
+  return goals;
+}
+
 export async function loadEgoStore(storePath: string): Promise<EgoStoreFile> {
   try {
     const raw = await fs.promises.readFile(storePath, "utf-8");
@@ -274,6 +291,7 @@ export async function loadEgoStore(storePath: string): Promise<EgoStoreFile> {
       if (parsed.version === 3) {
         const mergedEgo = mergeWithDefaultsV2(parsed.ego ?? {});
         mergedEgo.memories = migrateMemoriesToV3(mergedEgo.memories);
+        mergedEgo.goals = migrateGoalIds(mergedEgo.goals);
         const store: EgoStoreFile = {
           version: 3,
           ego: mergedEgo,
