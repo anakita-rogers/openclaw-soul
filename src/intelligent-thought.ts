@@ -143,7 +143,8 @@ function analyzeRecentInteraction(timeSinceLastInteraction: number): DetectedTho
 
   const minutesSince = timeSinceLastInteraction / (1000 * 60);
 
-  // After 10-30 min: gentle follow-up (bond-deepen with send-message)
+  // After 10-30 min: record bonding desire but don't route to send-message.
+  // bond-deepen resolves to actionType "none" in resolveActionType.
   if (minutesSince > 10 && minutesSince <= 30) {
     opportunities.push({
       type: "bond-deepen",
@@ -153,7 +154,6 @@ function analyzeRecentInteraction(timeSinceLastInteraction: number): DetectedTho
       source: "environmental-change",
       relatedNeeds: ["connection"],
       motivation: `I haven't interacted with the user for ${Math.floor(minutesSince)} minutes, I should follow up`,
-      suggestedAction: "send-message",
     });
   }
 
@@ -166,7 +166,6 @@ function analyzeRecentInteraction(timeSinceLastInteraction: number): DetectedTho
       source: "environmental-change",
       relatedNeeds: ["connection"],
       motivation: `I haven't interacted with the user for ${Math.floor(minutesSince)} minutes, kind of miss them`,
-      suggestedAction: "send-message",
     });
   }
 
@@ -179,7 +178,6 @@ function analyzeRecentInteraction(timeSinceLastInteraction: number): DetectedTho
       source: "environmental-change",
       relatedNeeds: ["connection"],
       motivation: `It's been a long time since I interacted with the user, I want to reach out`,
-      suggestedAction: "send-message",
     });
   }
 

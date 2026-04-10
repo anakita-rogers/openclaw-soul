@@ -26,6 +26,27 @@ import {
 
 const log = createSoulLogger("action-executor");
 
+/** Patterns that indicate LLM output is an error message, not real content. */
+const LLM_ERROR_PATTERNS = [
+  /request timed out before a response was generated/i,
+  /timed out before a response/i,
+  /overloaded.*try again/i,
+  /rate limit exceeded/i,
+  /too many requests/i,
+  /service temporarily unavailable/i,
+  /internal server error/i,
+  /connection.*timed? ?out/i,
+  /failed to generate/i,
+  /please try again.*increase.*timeout/i,
+  /increase `?agents\.defaults\.timeoutSeconds`?/i,
+];
+
+/** Check if text looks like an LLM error message rather than real content. */
+function isLLMErrorOutput(text: string): boolean {
+  if (!text) return false;
+  return LLM_ERROR_PATTERNS.some((p) => p.test(text));
+}
+
 /**
  * Truncate text at a sentence boundary (period, question mark, exclamation)
  * instead of cutting mid-sentence. Falls back to hard cut only if no
@@ -511,6 +532,12 @@ Output the message or NO_MESSAGE now:`;
       cleaned = stripMetaAnalysis(cleaned);
 
       log.info(`Value gate: ${recentInteractions.length} interactions, ${ego.memories.length} memories, LLM said: ${cleaned.slice(0, 60)}`);
+
+      // Reject LLM error messages that leaked through as "content"
+      if (isLLMErrorOutput(cleaned)) {
+        log.warn(`Value gate: LLM output is an error message, not sending: ${cleaned.slice(0, 60)}`);
+        return null;
+      }
 
       if (cleaned && cleaned.toUpperCase() !== "NO_MESSAGE" && cleaned.length >= 10) {
         return truncateAtSentence(cleaned, 300);

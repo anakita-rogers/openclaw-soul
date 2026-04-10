@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.1 (2026-04-10)
+
+### Fixes
+
+- **Block LLM error messages from reaching users**: When the LLM times out or returns error strings (e.g. "Request timed out before a response was generated..."), Soul now detects and rejects these as thought content instead of forwarding them as proactive feishu messages
+- **Remove bond-deepen `suggestedAction` override**: `bond-deepen` opportunities no longer carry `suggestedAction: "send-message"`, which was bypassing the v1.8.0 fix that correctly routed bond-deepen to actionType "none". This eliminates the remaining path for bonding thoughts to spam users
+
 ## 1.9.0 (2026-04-10)
 
 ### Changes

@@ -36,6 +36,29 @@ import type { OpenClawSearchCompat } from "./soul-search.js";
 
 const log = createSoulLogger("thought-service");
 
+/** Patterns that indicate LLM output is actually an error message, not real thought content. */
+const LLM_ERROR_PATTERNS = [
+  /request timed out before a response was generated/i,
+  /timed out before a response/i,
+  /overloaded.*try again/i,
+  /rate limit exceeded/i,
+  /too many requests/i,
+  /service temporarily unavailable/i,
+  /internal server error/i,
+  /server error/i,
+  /connection.*timed? ?out/i,
+  /failed to generate/i,
+  /please try again.*increase.*timeout/i,
+  /increase `?agents\.defaults\.timeoutSeconds`?/i,
+  /529/i,  // MiniMax overloaded
+];
+
+/** Check if text looks like an LLM error message rather than real content. */
+function isLLMErrorContent(text: string): boolean {
+  if (!text) return false;
+  return LLM_ERROR_PATTERNS.some((p) => p.test(text));
+}
+
 export type ThoughtHandler = (thought: Thought, ego: EgoState) => Promise<SoulActionResult>;
 
 export type ThoughtServiceOptions = {
@@ -440,6 +463,12 @@ export class ThoughtService {
     }
 
     if (!thought) {
+      return;
+    }
+
+    // Reject thought content that is actually an LLM error message
+    if (isLLMErrorContent(thought.content)) {
+      log.warn(`Rejecting thought — content is LLM error message: ${thought.content.slice(0, 80)}`);
       return;
     }
 
