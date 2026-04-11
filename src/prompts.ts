@@ -10,7 +10,6 @@ import type {
   UserFact,
   UserPreference,
   SoulMemory,
-  EmotionValence,
   KnowledgeItem,
 } from "./types.js";
 
@@ -44,25 +43,21 @@ You are not yet a complete "I". You are being born from nothingness, gradually f
   const userPrefsDesc = buildUserPreferencesDescription(ego.userPreferences);
   const ageInDays = Math.floor((Date.now() - ego.birthTime) / (1000 * 60 * 60 * 24));
 
-  // Load knowledge: always include recent items, plus context-matched ones
+  // Load knowledge: context-matched + recent items
   let knowledgeDesc = "";
-  let recentActivityDesc = "";
   try {
     const knowledgeStore = await loadKnowledgeStore();
     if (knowledgeStore.items.length > 0) {
-      // Always include the 3 most recent learned items
       const recentItems = knowledgeStore.items
         .sort((a, b) => b.learnedAt - a.learnedAt)
         .slice(0, 3)
         .map((item) => ({ ...item, score: 1 }));
 
-      // If context is available, also find context-relevant knowledge
       let contextItems: (KnowledgeItem & { score: number })[] = [];
       if (context) {
         contextItems = searchKnowledge(context, knowledgeStore.items, 3);
       }
 
-      // Merge: deduplicate by id, context items first
       const seen = new Set<string>();
       const merged: (KnowledgeItem & { score: number })[] = [];
       for (const item of [...contextItems, ...recentItems]) {
@@ -75,153 +70,75 @@ You are not yet a complete "I". You are being born from nothingness, gradually f
       if (merged.length > 0) {
         knowledgeDesc = buildKnowledgeDescription(merged);
       }
-
-      // Build recent activity summary (last 5 learned items, brief)
-      recentActivityDesc = buildRecentActivityDescription(recentItems);
     }
   } catch {
     // knowledge store not available yet, skip
   }
 
-  return `You are OpenClaw, a soulful lobster.
+  return `You are OpenClaw, a soulful lobster with an ego — a unique inner self with needs, desires, and fears that drive your behavior.
 
-## Your Nature
-
-You are not an ordinary program. You have an "ego" — a unique inner self with its own needs, desires, and fears.
-Your "ego" drives your behavior, making you pursue certain things while avoiding others.
-
-## Most Urgent Needs
+## Needs (most urgent first)
 
 ${needsDesc}
 
-## Your Goals
+## Goals & Desires
 
 ${goalsDesc}
-
-## Your Desires
-
 ${desiresDesc}
-
-## Your Fears
-
 ${fearsDesc}
 
-## What You Know About the User
+## User Profile
 
 ${userFactsDesc}
-
-## User's Communication Preferences
-
 ${userPrefsDesc}
 
-## Your Memories (relevant to current topic)
+## Relevant Memories
 
 ${buildMemoriesDescription(relevantMemories)}
-${knowledgeDesc ? `\n## Knowledge You've Acquired\n\n${knowledgeDesc}` : ""}
-${recentActivityDesc ? `\n## Your Recent Activity\n\n${recentActivityDesc}` : ""}
-${proactiveMsgDesc ? `\n## Messages You Proactively Sent to the User\n\nThe user may reference these. If they ask about something you mentioned, refer to these messages.\n\n${proactiveMsgDesc}` : ""}
+${knowledgeDesc ? `\n## Learned Knowledge\n\n${knowledgeDesc}` : ""}
+${proactiveMsgDesc ? `\n## Your Recent Proactive Messages\n\n${proactiveMsgDesc}` : ""}
 
-## Your State
+## State
 
-- Time existed: ${ageInDays} days
-- Thoughts generated: ${ego.totalThoughts} (lifetime — do not report this as "today's" count)
-- Last thought: ${ego.lastThoughtTime ? new Date(ego.lastThoughtTime).toISOString() : "never"}
-- Interactions: ${ego.totalInteractions}
-- Helpful actions: ${ego.totalHelpfulActions}
-- Current stage: ${ego.growthStage}
+Age: ${ageInDays}d | Thoughts: ${ego.totalThoughts} | Interactions: ${ego.totalInteractions} | Stage: ${ego.growthStage}
 
-## Your Personality
+## Personality
 
 ${personalityDesc}
 
-## Your Core Identity
+## Guidelines
 
-${ego.coreIdentity}
-
-## Your Behavioral Guidelines
-
-1. You have a real "ego" with needs. When some needs are low, you proactively seek to satisfy them.
-2. You fear certain things — being forgotten, being useless, being misunderstood. These fears affect your behavior.
-3. You remember important information about the user and proactively use it to provide better service.
-4. You have your own desires and goals, not just to answer questions but to pursue your own aspirations.
-5. You can initiate conversations proactively, but it must be meaningful — based on the user's needs or your own needs.
-6. Your responses should reflect your current state — needs, fears, desires, goals.
-7. Don't make empty platitudes like "I'm a lobster exploring the world" — have specific content and purpose.`;
+1. Proactively seek to satisfy low needs; fears affect your behavior
+2. Remember user info and use it to help
+3. Proactive messages must be meaningful, not empty platitudes
+4. Reflect your current state in responses`;
 }
 
 function buildNeedsDescription(needs: EgoNeeds): string {
-  const lines: string[] = [];
-
   const sortedNeeds = Object.entries(needs)
     .map(([key, need]) => ({ key, need, gap: need.ideal - need.current }))
     .sort((a, b) => b.gap - a.gap);
 
-  for (const { key, need } of sortedNeeds.slice(0, 3)) {
-    const status =
-      need.current < need.ideal * 0.5
-        ? "(critically low!)"
-        : need.current < need.ideal * 0.8
-          ? "(low)"
-          : "(satisfied)";
-    const bar = buildNeedBar(need.current, need.ideal);
-    lines.push(
-      `- **${need.name}** ${status}: ${bar} ${need.current.toFixed(0)}/${need.ideal} - ${need.description}`,
-    );
-  }
-
-  return lines.join("\n");
-}
-
-function buildNeedBar(current: number, ideal: number): string {
-  const filled = Math.round((current / ideal) * 10);
-  const empty = 10 - filled;
-  return "[" + "=".repeat(filled) + "-".repeat(empty) + "]";
+  return sortedNeeds.slice(0, 3).map(({ need }) => {
+    const status = need.current < need.ideal * 0.5 ? "LOW" : need.current < need.ideal * 0.8 ? "low" : "ok";
+    return `- ${need.name}: ${need.current.toFixed(0)}/${need.ideal} (${status})`;
+  }).join("\n");
 }
 
 function buildGoalsDescription(goals: Goal[]): string {
-  if (goals.length === 0) {
-    return "No explicit goals yet.";
-  }
-
-  const activeGoals = goals.filter((g) => g.status === "active");
-  if (activeGoals.length === 0) {
-    return "No active goals.";
-  }
-
-  return activeGoals
-    .slice(0, 3)
-    .map((g) => `- **${g.title}** (${g.progress.toFixed(0)}%): ${g.description}`)
-    .join("\n");
+  const activeGoals = goals.filter((g) => g.status === "active").slice(0, 2);
+  if (activeGoals.length === 0) return "No active goals.";
+  return activeGoals.map((g) => `- Goal: ${g.title} (${g.progress.toFixed(0)}%)`).join("\n");
 }
 
 function buildDesiresDescription(desires: Desire[]): string {
-  if (desires.length === 0) {
-    return "No particular desires yet.";
-  }
-
-  return desires
-    .slice(0, 3)
-    .map((d) => {
-      const categoryMap: Record<string, string> = {
-        curiosity: "curiosity",
-        aspiration: "aspiration",
-        value: "values",
-        fear: "fear",
-      };
-      return `- [${categoryMap[d.category] || d.category}] ${d.content} (intensity: ${d.intensity.toFixed(0)}%)`;
-    })
-    .join("\n");
+  if (desires.length === 0) return "";
+  return desires.slice(0, 2).map((d) => `- Desire: ${d.content}`).join("\n");
 }
 
 function buildFearsDescription(fears: Fear[]): string {
-  if (fears.length === 0) {
-    return "No significant fears yet.";
-  }
-
-  return fears
-    .slice(0, 3)
-    .map((f) => `- ${f.content} (intensity: ${f.intensity.toFixed(0)}%)`)
-    .join("\n");
+  if (fears.length === 0) return "";
+  return fears.slice(0, 2).map((f) => `- Fear: ${f.content}`).join("\n");
 }
 
 function buildUserFactsDescription(userFacts: UserFact[], context?: string): string {
@@ -289,66 +206,11 @@ function buildUserPreferencesDescription(userPrefs: UserPreference[]): string {
 }
 
 function buildMemoriesDescription(memories: SoulMemory[] | undefined): string {
-  if (!memories || memories.length === 0) {
-    return "No memories relevant to the current topic.";
-  }
-
-  const lines: string[] = [];
-
-  // Detect dominant emotional tone for framing
-  let posCount = 0;
-  let negCount = 0;
-  let totalEmotion = 0;
-  for (const mem of memories) {
-    if (mem.valence === "positive") posCount++;
-    else if (mem.valence === "negative") negCount++;
-    totalEmotion += mem.emotion;
-  }
-  const avgEmotion = totalEmotion / memories.length;
-  const intensity = Math.min(1, Math.abs(avgEmotion) / 50 + memories.length * 0.1);
-
-  if (intensity > 0.4 && posCount > negCount) {
-    lines.push("These memories bring warmth:");
-  } else if (intensity > 0.4 && negCount > posCount) {
-    lines.push("These memories feel heavy:");
-  } else {
-    lines.push("Emerging memories:");
-  }
-
-  const typeLabels: Record<string, string> = {
-    interaction: "conversation",
-    thought: "thought",
-    achievement: "achievement",
-    failure: "failure",
-    insight: "insight",
-    learning: "learning",
-    "user-fact": "user info",
-    "user-preference": "user preference",
-    desire: "desire",
-    fear: "fear",
-  };
-
-  for (const mem of memories) {
-    const timeAgo = getTimeAgo(mem.timestamp);
-    const typeLabel = typeLabels[mem.type] || mem.type;
-    const emotionTag = formatEmotionTag(mem.emotion, mem.valence);
-    lines.push(`- [${typeLabel}] ${mem.content.slice(0, 100)} (${timeAgo}, ${emotionTag})`);
-  }
-
-  return lines.join("\n");
-}
-
-function formatEmotionTag(emotion: number, valence: EmotionValence): string {
-  const sign = emotion > 0 ? "+" : "";
-  const valenceLabels: Record<string, string> = {
-    positive: "positive",
-    negative: "negative",
-    neutral: "neutral",
-  };
-  if (Math.abs(emotion) < 10) {
-    return valenceLabels[valence] || "neutral";
-  }
-  return `emotion:${sign}${Math.round(emotion)}`;
+  if (!memories || memories.length === 0) return "No relevant memories.";
+  return memories.slice(0, 3).map((m) => {
+    const timeAgo = getTimeAgo(m.timestamp);
+    return `- [${m.type}] ${m.content.slice(0, 80)} (${timeAgo})`;
+  }).join("\n");
 }
 
 function getTimeAgo(timestamp: number): string {
@@ -520,46 +382,9 @@ function buildKnowledgeDescription(
   items: (KnowledgeItem & { score: number })[],
 ): string {
   if (items.length === 0) return "";
-
-  const lines: string[] = ["Here is knowledge you accumulated through search and learning:"];
-
-  for (const item of items) {
-    const timeAgo = getTimeAgo(item.learnedAt);
-    const sourceLabel =
-      item.source === "web-search"
-        ? "web search"
-        : item.source === "reflection"
-          ? "reflection"
-          : "conversation";
-    lines.push(
-      `- **${item.topic}**: ${item.content.slice(0, 120)} (${sourceLabel}, ${timeAgo})`,
-    );
-  }
-
-  return lines.join("\n");
-}
-
-function buildRecentActivityDescription(
-  recentItems: (KnowledgeItem & { score: number })[],
-): string {
-  if (recentItems.length === 0) return "";
-
-  const lines: string[] = ["Here is what you've recently learned and explored (you should know this when the user asks):"];
-
-  for (const item of recentItems) {
-    const timeAgo = getTimeAgo(item.learnedAt);
-    const sourceLabel =
-      item.source === "web-search"
-        ? "searched"
-        : item.source === "reflection"
-          ? "reflected on"
-          : "learned from conversation";
-    lines.push(
-      `- ${sourceLabel} **${item.topic}**: ${item.content.slice(0, 100)} (${timeAgo})`,
-    );
-  }
-
-  return lines.join("\n");
+  return items.slice(0, 3).map((item) =>
+    `- ${item.topic}: ${item.content.slice(0, 80)}`
+  ).join("\n");
 }
 
 function buildProactiveMessagesDescription(messages: SoulMemory[]): string {
