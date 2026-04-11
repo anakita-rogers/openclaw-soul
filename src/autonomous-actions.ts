@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createSoulLogger } from "./logger.js";
 import { invokeGatewayTool, fireAgentTask, isWriteTool } from "./gateway-client.js";
+import { isGoodTimeForMessage } from "./action-executor.js";
 import type { LLMGenerator } from "./soul-llm.js";
 import type { Thought, EgoState, ActionResult, MetricDelta, AutonomousTask, TaskStep, ActionType } from "./types.js";
 import type { MessageSender } from "./soul-actions.js";
@@ -421,6 +422,19 @@ Output ONLY the message, nothing else.`;
 
   if (!message || message.length < 10) {
     return { result: { type: "report-findings", success: true, result: "nothing meaningful to report" }, metricsChanged: [] };
+  }
+
+  // Quiet hours: don't send, but mark as delivered so it won't retry later.
+  // The analysis result is already stored in the task record.
+  if (!isGoodTimeForMessage()) {
+    log.info("Quiet hours active — skipping report-findings delivery");
+    await updateEgoStore(resolveEgoStorePath(), (e) => {
+      for (const t of e.activeTasks ?? []) {
+        if (t.status === "completed" && !t.resultDelivered) t.resultDelivered = true;
+      }
+      return e;
+    });
+    return { result: { type: "report-findings", success: true, result: "skipped-quiet-hours" }, metricsChanged: [] };
   }
 
   try {
