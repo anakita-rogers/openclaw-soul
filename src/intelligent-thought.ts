@@ -889,15 +889,43 @@ function determineActionForOpportunity(
     return { actionType: "self-reflect" };
   }
 
+  // --- Autonomous action routing (high priority, before learn-topic) ---
+
+  // Check for completed autonomous tasks that need to be reported to the user.
+  const completedUndeliveredTasks = (ego.activeTasks ?? []).filter(
+    (t) => t.status === "completed" && !t.resultDelivered && t.result,
+  );
+  if (completedUndeliveredTasks.length > 0) {
+    return { actionType: "report-findings" };
+  }
+
+  // conversation-replay AND opportunity-detected: if the user discussed a
+  // problem/error/optimization, route to analyze-problem instead of learn-topic.
+  // Must be checked BEFORE the learn-topic branch below to take priority.
+  if (type === "conversation-replay" || type === "opportunity-detected") {
+    const problemKeywords = /error|bug|issue|problem|stuck|failed|broken|crash|timeout|optimize|improve|enhance|refactor|fix|debug|analyze|观察|检查|排查|报错|错误|失败|崩溃|超时|挂了|异常|不能|无法|不行|优化|改进|改善|提升|修复|调试|分析/i;
+    const combinedText = opportunity.triggerDetail + " " + opportunity.motivation;
+    if (problemKeywords.test(combinedText)) {
+      const logPaths = extractFilePaths(combinedText, ".log");
+      return {
+        actionType: "analyze-problem",
+        actionParams: {
+          reason: opportunity.motivation,
+          logPaths,
+          sourcePaths: [],
+        },
+      };
+    }
+  }
+
+  // --- Standard action routing ---
+
   if (
     type === "skill-gap" ||
     (type === "opportunity-detected" && relatedNeeds.includes("growth"))
   ) {
     const learnProbability = adjustProbability(0.4, "learn-topic", ego.behaviorLog ?? []);
     if (growthNeed.current < growthNeed.ideal * 0.7 && Math.random() < learnProbability) {
-      // Only learn from user-related context, not ego internal state descriptions.
-      // triggerDetail for need-gap opportunities contains text like
-      // "security need critically low: 57/90" which produces useless searches.
       const isEgoInternal = /need (could improve|critically low|is low)|\d+\/\d+$/.test(opportunity.triggerDetail);
       if (!isEgoInternal) {
         const topics = extractLearningTopics(
@@ -918,38 +946,9 @@ function determineActionForOpportunity(
     return { actionType: "send-message" };
   }
 
-  // bond-deepen: do NOT route to send-message. This thought type fires
-  // after 10 min of silence and generates bonding content that almost
-  // never has genuine proactive value. It gets internally recorded as
-  // a soul memory (connection need delta) but should not spam the user.
+  // bond-deepen: do NOT route to send-message.
   if (type === "bond-deepen") {
     return { actionType: "none" };
-  }
-
-  // Check for completed autonomous tasks that need to be reported to the user.
-  // This takes priority over generating new thoughts.
-  const completedUndeliveredTasks = (ego.activeTasks ?? []).filter(
-    (t) => t.status === "completed" && !t.resultDelivered && t.result,
-  );
-  if (completedUndeliveredTasks.length > 0) {
-    return { actionType: "report-findings" };
-  }
-
-  // conversation-replay: if the user discussed a problem/error, try to analyze it
-  if (type === "conversation-replay") {
-    const problemKeywords = /error|bug|issue|problem|stuck|failed|broken|crash|timeout|optimize|improve|enhance|refactor|fix|debug|analyze|报错|错误|失败|崩溃|超时|挂了|异常|不能|无法|不行|优化|改进|改善|提升|修复|调试|分析|排查/i;
-    if (problemKeywords.test(opportunity.triggerDetail) || problemKeywords.test(opportunity.motivation)) {
-      // Extract log/source paths from conversation context
-      const logPaths = extractFilePaths(opportunity.triggerDetail + " " + opportunity.motivation, ".log");
-      return {
-        actionType: "analyze-problem",
-        actionParams: {
-          reason: opportunity.motivation,
-          logPaths,
-          sourcePaths: [],
-        },
-      };
-    }
   }
 
   // opportunity-detected with connection need: only message if there's
@@ -1117,7 +1116,22 @@ export async function generateIntelligentThought(
       const thought = buildThoughtFromOpportunity(selectedOpportunity, ctx.ego);
       thought.content = refinedContent;
 
-      if (
+      // LLM content often contains more specific intent than the opportunity's
+      // triggerDetail/motivation. Check if the LLM wants to investigate,
+      // read files/logs, or analyze something — these should route to
+      // analyze-problem, not learn-topic.
+      const diagnosticKeywords = /读取|读一下|查看|检查|观察|排查|分析|分析一下|日志|log|investigate|inspect|check|analyze|read.*(file|log)|diagnos/i;
+      if (diagnosticKeywords.test(refinedContent) &&
+          (selectedOpportunity.type === "opportunity-detected" ||
+           selectedOpportunity.type === "conversation-replay" ||
+           selectedOpportunity.type === "skill-gap")) {
+        thought.actionType = "analyze-problem";
+        thought.actionParams = {
+          reason: refinedContent.slice(0, 200),
+          logPaths: extractFilePaths(refinedContent, ".log"),
+          sourcePaths: [],
+        };
+      } else if (
         selectedOpportunity.type === "skill-gap" ||
         selectedOpportunity.type === "opportunity-detected"
       ) {
