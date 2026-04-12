@@ -27,7 +27,8 @@ export type ActionType =
   | "invoke-tool"
   | "analyze-problem"
   | "run-agent-task"
-  | "report-findings";
+  | "report-findings"
+  | "observe-and-improve";
 
 export type ThoughtTrigger =
   | "opportunity"

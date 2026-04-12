@@ -198,6 +198,7 @@ const ACTION_COOLDOWNS_MS: Record<ActionType, number> = {
   "analyze-problem": 60 * 60 * 1000,
   "run-agent-task": 15 * 60 * 1000,
   "report-findings": 2 * 60 * 60 * 1000,
+  "observe-and-improve": 4 * 60 * 60 * 1000,
 };
 
 const lastActionTime: Record<string, number> = {};
@@ -334,7 +335,8 @@ export async function executeThoughtAction(
       case "invoke-tool":
       case "analyze-problem":
       case "run-agent-task":
-      case "report-findings": {
+      case "report-findings":
+      case "observe-and-improve": {
         const { executeAutonomousAction } = await import("./autonomous-actions.js");
         actionResult = await executeAutonomousAction(actionType, thought, ego, {
           autonomousActions: options.autonomousActions ?? false,

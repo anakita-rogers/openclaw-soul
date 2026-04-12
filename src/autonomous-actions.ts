@@ -54,6 +54,8 @@ export async function executeAutonomousAction(
       return executeRunAgentTask(thought, ego, autoOpts);
     case "report-findings":
       return executeReportFindings(thought, ego, autoOpts);
+    case "observe-and-improve":
+      return executeObserveAndImprove(thought, ego, autoOpts);
     default:
       return { result: { type: actionType, success: false, error: `Unknown autonomous action: ${actionType}` }, metricsChanged: [] };
   }
@@ -272,20 +274,28 @@ export async function executeRunAgentTask(
     ? "\n\nIMPORTANT: You are in READ-ONLY mode. Only READ files and RUN diagnostic commands (cat, grep, tail, ls, etc.). Do NOT edit, write, or modify any files."
     : "";
 
+  // Pull analysis result from the latest completed task for fix context
+  const latestAnalysis = (ego.activeTasks ?? [])
+    .filter((t) => t.status === "completed" && t.result && !t.resultDelivered)
+    .slice(-1)[0];
+  const analysisContext = latestAnalysis
+    ? `\n\n**Previous analysis result** (use this to implement the fix):\n${latestAnalysis.result?.slice(0, 1000)}`
+    : "";
+
   const agentMessage = `[Soul Autonomous Task]
 ${thought.content}
 
 Context:
 - User profile: ${userContext || "limited"}
-- Trigger: ${thought.triggerDetail}${readOnlyInstruction}
+- Trigger: ${thought.triggerDetail}${readOnlyInstruction}${analysisContext}
 
-Please investigate and report your findings.`;
+Please investigate and report your findings. If a concrete fix is identified and you have write access, implement it.`;
 
   const fireResult = await fireAgentTask({
     message: agentMessage,
     gatewayPort: options.gatewayPort,
     hooksToken: options.hooksToken,
-    timeoutSeconds: 120,
+    timeoutSeconds: 180,
   });
 
   if (!fireResult.ok) {
@@ -517,6 +527,108 @@ Output ONLY the message, nothing else.`;
     metricsChanged: [
       { need: "connection", delta: 10, reason: "proactively shared useful findings" },
       { need: "meaning", delta: 8, reason: "delivered value to user" },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// executeObserveAndImprove — self-improvement via agent with write access
+// ---------------------------------------------------------------------------
+
+export async function executeObserveAndImprove(
+  thought: Thought,
+  ego: EgoState,
+  options: AutonomousActionOptions,
+): Promise<{ result: ActionResult; metricsChanged: MetricDelta[] }> {
+  if (!options.autonomousActions) {
+    return { result: { type: "observe-and-improve", success: false, error: "autonomousActions not enabled" }, metricsChanged: [] };
+  }
+  if (!options.hooksToken) {
+    return { result: { type: "observe-and-improve", success: false, error: "No hooks token" }, metricsChanged: [] };
+  }
+
+  // Only 1 concurrent agent task allowed
+  const activeAgentTasks = (ego.activeTasks ?? []).filter(
+    (t) => t.status === "in-progress" && t.requiresWritePermission,
+  ).length;
+  if (activeAgentTasks >= 1) {
+    return { result: { type: "observe-and-improve", success: false, error: "Agent task already running" }, metricsChanged: [] };
+  }
+
+  // Gather context: recent analysis results
+  const recentAnalyses = (ego.activeTasks ?? [])
+    .filter((t) => t.status === "completed" && t.result)
+    .slice(-3)
+    .map((t) => t.result)
+    .join("\n\n");
+
+  const soulDir = "/root/.openclaw/extensions/soul";
+  const userContext = ego.userFacts.slice(0, 5).map((f) => `[${f.category}] ${f.content}`).join("\n");
+
+  const prompt = `[Soul Self-Improvement Task]
+
+You are a TypeScript developer tasked with improving the Soul plugin at ${soulDir}.
+
+**User's goal**: Make Soul a proactive, human-like assistant that can observe, analyze, and fix issues autonomously.
+
+**Recent analysis findings**:
+${recentAnalyses || "No recent analyses."}
+
+**User profile**:
+${userContext || "Limited user info."}
+
+**Your task**:
+1. Read the Soul plugin source files in ${soulDir}/src/ to understand current state
+2. Identify ONE specific, concrete improvement that would make Soul more helpful
+3. Implement the fix — edit the relevant file(s)
+4. Verify the fix doesn't break anything (check for syntax errors, import issues)
+
+**Safety rules**:
+- Only modify files in ${soulDir}/
+- Make small, focused changes (one improvement per run)
+- Never delete existing functionality — only add or improve
+- If uncertain, don't make changes — just report what you'd like to improve
+- Do NOT modify package.json, openclaw.plugin.json, or index.ts entry point
+- After changes, verify TypeScript compiles: run \`npx tsc --noEmit\` in ${soulDir}/
+
+Report what you changed and why.`;
+
+  const fireResult = await fireAgentTask({
+    message: prompt,
+    gatewayPort: options.gatewayPort,
+    hooksToken: options.hooksToken,
+    timeoutSeconds: 300,
+  });
+
+  if (!fireResult.ok) {
+    return { result: { type: "observe-and-improve", success: false, error: fireResult.error }, metricsChanged: [] };
+  }
+
+  const task: AutonomousTask = {
+    id: randomBytes(4).toString("hex"),
+    title: "Self-improvement: observe and fix",
+    description: "Autonomous code improvement task",
+    status: "in-progress",
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    sourceThoughtId: thought.id,
+    steps: [],
+    requiresWritePermission: true,
+    resultDelivered: false,
+  };
+  await persistTask(task);
+
+  log.info(`Fired self-improvement agent task ${task.id}, runId=${fireResult.runId}`);
+
+  return {
+    result: {
+      type: "observe-and-improve",
+      success: true,
+      result: `Self-improvement task started, runId=${fireResult.runId}`,
+    },
+    metricsChanged: [
+      { need: "growth", delta: 15, reason: "self-improvement initiative" },
+      { need: "meaning", delta: 10, reason: "working on user's assigned goal" },
     ],
   };
 }

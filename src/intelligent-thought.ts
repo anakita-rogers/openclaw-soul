@@ -691,6 +691,26 @@ function analyzeContextualTriggers(ctx: ThoughtGenerationContext): DetectedThoug
     });
   }
 
+  // --- Self-improvement goal trigger ---
+  // When user has assigned Soul a self-improvement goal, generate opportunities
+  // to observe and improve itself via the agent.
+  const improvementGoals = ego.goals.filter(
+    (g) => g.status === "active" &&
+      /优化|improve|self|自主|观察|self-improvement|助理/i.test(g.title + g.description),
+  );
+  if (improvementGoals.length > 0 && !hasConversationReplay) {
+    opportunities.push({
+      type: "opportunity-detected",
+      trigger: "opportunity",
+      triggerDetail: `Active self-improvement goal: ${improvementGoals[0].title}`,
+      priority: 55,
+      source: "system-monitor",
+      relatedNeeds: ["growth", "meaning"],
+      motivation: `I have an active goal to improve myself: ${improvementGoals[0].title}`,
+      suggestedAction: "observe-and-improve",
+    });
+  }
+
   return opportunities;
 }
 
@@ -890,6 +910,16 @@ function determineActionForOpportunity(
   }
 
   // --- Autonomous action routing (high priority, before learn-topic) ---
+
+  // Route completed analysis with fix suggestions to agent execution.
+  // The agent has write access and can implement the fix.
+  const completableFixTasks = (ego.activeTasks ?? []).filter(
+    (t) => t.status === "completed" && !t.resultDelivered && t.result &&
+      /fix|修复|解决|suggest|recommend|change|修改|优化|improve/i.test(t.result),
+  );
+  if (completableFixTasks.length > 0) {
+    return { actionType: "run-agent-task" };
+  }
 
   // Check for completed autonomous tasks that need to be reported to the user.
   const completedUndeliveredTasks = (ego.activeTasks ?? []).filter(
