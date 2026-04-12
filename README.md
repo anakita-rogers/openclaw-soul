@@ -1,72 +1,138 @@
-# OpenClaw Soul Plugin
+# Soul — Give Your AI Assistant Its Own Inner Life
 
-An autonomous thinking, emotional awareness, and memory system for [OpenClaw](https://github.com/openclaw/openclaw).
+> An autonomous thinking, memory, and self-improvement plugin for [OpenClaw](https://github.com/openclaw/openclaw)
 
-Soul gives your OpenClaw instance an inner life: it generates its own thoughts, remembers conversations, learns from the web, and can proactively reach out to you. It has its own needs, fears, desires, and personality that evolve over time.
+**Soul doesn't just respond to you — it thinks on its own, remembers your conversations, learns from the web, and proactively shares useful insights.**
 
-## Core Features
+It has its own emotional needs, goals, desires, and personality that evolve over time. It can autonomously investigate problems, analyze logs, and even fix its own code.
 
-### Autonomous Thought Generation
+## What It Looks Like
 
-Soul doesn't just respond — it **thinks on its own**. A background thought service continuously generates thoughts based on:
+Soul works silently in the background. Here's what you might see:
 
-- **Conversation context** — Replays past conversations to find unresolved questions, topics worth following up on, or insights to share
-- **Emotional state** — Five core needs (survival, connection, growth, meaning, security) drive what Soul thinks about. When a need drops, Soul generates thoughts to restore balance
+**You asked about a timeout error yesterday. Soul investigated overnight:**
+
+> 你之前问的超时问题我查到了——根因是 embedding API 有 512 token 限制，不是 Soul 本身的问题。
+
+**Soul found something relevant to your project:**
+
+> 关于你之前问的怎么让 AI 更主动，我查到李飞飞提出的"以人为本的AI"理念——强调 AI 应该主动理解人的需求而非被动响应。
+
+**Soul autonomously analyzed a problem you mentioned:**
+
+> 日志里那个 413 错误是 memory search 输入超长导致的，跟 Soul 插件没关系。建议把 query 截断到 500 字符以内。
+
+*These are real message formats — Soul composes them itself based on actual investigation results, not templates.*
+
+## How Soul Is Different
+
+Most AI assistants are **reactive** — they only respond when you ask. Soul is **proactive**:
+
+| | Regular AI Assistant | Soul Plugin |
+|---|---|---|
+| Thinking | Only when prompted | Continuously, in the background |
+| Memory | Per-session, resets | Persistent across restarts |
+| Proactive messages | No | Yes — when it has something valuable |
+| Problem investigation | Only when asked | Autonomous — detects issues from conversation |
+| Self-improvement | No | Can observe and improve its own code |
+| User understanding | Per-session context | Builds a long-term user profile |
+
+## Key Features
+
+### Autonomous Thought Cycle
+
+Soul runs a background thought service that generates thoughts based on:
+
+- **Conversation replay** — Replays your past conversations to find unresolved questions, follow-up opportunities, or insights worth sharing
+- **Problem detection** — When you discuss bugs, errors, or optimizations, Soul autonomously investigates
 - **User interests** — Extracts topics from conversations and proactively learns about them
+- **Emotional needs** — Five core needs (survival, connection, growth, meaning, security) that drive behavior
 
-The thought frequency is **adaptive**, not mechanical:
-- **Active conversation with substantive topics** → thoughts every 8-12 minutes
-- **Casual / test messages with little substance** → thoughts every 25-40 minutes
-- **User away for over an hour** → thoughts every 20-45 minutes
-- **Never during active conversation** — thoughts are paused while you're chatting
-
-Thought types include: `learn-topic`, `search-web`, `send-message`, `self-reflect`, `analyze-problem`, `invoke-tool`, `run-agent-task`, `report-findings`, and more. Soul picks the most relevant type based on context, not random selection.
+Thought frequency is **adaptive**, not mechanical: 8-12 min during active conversations, 20-45 min when you're away.
 
 ### Proactive Messaging
 
-Soul can **reach out to you first** when it has something genuinely valuable to share:
+Soul reaches out when it has something genuinely useful — not just "checking in":
 
 - Found an answer to a question you asked earlier
-- Learned something relevant to your interests or projects
 - Discovered a better solution to a problem you discussed
+- Learned something relevant to your project or interests
 
-Every proactive message goes through a **value gate**:
-1. LLM evaluates whether the content is genuinely worth sharing
-2. Generic small talk ("just checking in", "I was thinking about...") is filtered out
-3. Only specific, useful insights pass through
-
-Messages respect quiet hours (23:00-08:00), have a 15-minute cooldown, and won't send again if you haven't responded to the previous one.
-
-### Content-Aware Intelligence
-
-Soul understands the difference between meaningful and trivial content:
-
-- **Smart question detection** — Distinguishes genuine questions from test messages, exclamations, and meta-remarks about the bot itself
-- **Search quality filter** — Won't search the web for meaningless content like "test successful" or "why do you keep saying that"
-- **Search deduplication** — Won't repeat the same search query within 6 hours
-- **Language awareness** — Detects your language (Chinese, English, Japanese, Korean) and matches it in all responses
+Every message passes through a **value gate**: an LLM evaluates whether the content is worth sharing. Generic small talk is filtered out.
 
 ### Autonomous Actions
 
-Soul can take **real actions** beyond just thinking — reading logs, analyzing code, investigating problems, and reporting results to you:
+Soul can take real actions beyond thinking:
 
-- **Problem detection** — When you discuss bugs, errors, optimizations, or improvements, Soul autonomously reads relevant files and logs to investigate
-- **Multi-step analysis** — Gathers information via gateway tools, analyzes with LLM, and stores structured findings
-- **Result reporting** — Proactively sends you a summary of findings when analysis completes
-- **Task tracking** — Tasks persist across gateway restarts and are tracked with step-by-step progress
+- **`analyze-problem`** — Reads files and logs, uses LLM to analyze root cause
+- **`run-agent-task`** — Delegates to a full agent with write access (when enabled)
+- **`report-findings`** — Proactively sends you a summary of completed analysis
+- **`observe-and-improve`** — Self-improvement: reads its own code, identifies improvements, and implements fixes
 
 **Permission model:**
-- **Read operations** (reading files, running diagnostic commands like `cat`, `grep`, `tail`) — always allowed
-- **Write operations** (editing files, running commands that modify state) — require `autonomousActions: true` in config
+- **Read operations** (reading files, running diagnostics) — always allowed
+- **Write operations** (editing files, running commands) — requires `autonomousActions: true`
 
 ### Long-term Memory
 
-Soul remembers your conversations, your preferences, and what it has learned:
+Soul remembers your conversations, preferences, and knowledge:
 
 - **Interaction memory** with emotional context and topic tags
 - **Knowledge store** from web search and self-reflection
 - **User profile** built from facts, preferences, and conversation history
-- **Memory lifecycle**: creation → association → consolidation → decay → expiry
+- **Memory association graph** — memories are linked and recalled contextually
+
+## Quick Start
+
+### 1. Install
+
+```bash
+# From source
+git clone https://github.com/tommyguolin/openclaw-soul.git
+openclaw plugins install ./openclaw-soul
+
+# Or from ClawHub (requires OpenClaw 2026.4.0+)
+openclaw plugins install clawhub:openclaw-soul-plugin
+```
+
+### 2. Configure
+
+Edit `~/.openclaw/openclaw.json`:
+
+```jsonc
+{
+  "plugins": {
+    "soul": {
+      "enabled": true
+    }
+  },
+  // Required: enable gateway chat completions endpoint
+  "gateway": {
+    "http": {
+      "endpoints": {
+        "chatCompletions": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  // Required for proactive messaging
+  "hooks": {
+    "enabled": true,
+    "token": "your-secret-token-here"  // e.g. openssl rand -hex 32
+  }
+}
+```
+
+### 3. That's it
+
+Soul auto-detects:
+- **LLM** — Uses your `agents.defaults.model` config
+- **Search** — Uses your `tools.web.search` provider
+- **Channel** — Auto-detects your first messaging channel
+- **Target** — Auto-learns from your first incoming message
+
+Just start chatting. Soul begins thinking and building a profile immediately.
 
 ## How It Works
 
@@ -78,98 +144,46 @@ Soul remembers your conversations, your preferences, and what it has learned:
 | `message_sent` | Tracks engagement, updates behavior log |
 | `before_prompt_build` | Injects soul context (needs, memories, knowledge, personality) |
 
-### Two Parallel Systems
+### Self-Improvement Loop
 
-**Thought Service** (background, adaptive tick):
-1. Compute engagement score (interaction recency, frequency, substance)
-2. Generate thought based on conversation context and emotional state
-3. Execute action: `learn-topic`, `search-web`, `send-message`, `self-reflect`, `analyze-problem`, `invoke-tool`, `report-findings`
+```
+Tick cycle detects opportunity
+  → analyze-problem (read logs, LLM analysis)
+  → If analysis found a concrete fix
+    → run-agent-task (full agent with write/edit/exec tools)
+    → Agent completes, result stored
+  → Next tick: report-findings sends summary to user
+```
 
-**System Prompt Injection** (every response):
-- Current emotional needs and goals
-- User facts and preferences
-- Relevant memories and learned knowledge
-- Personality traits and recent activity
+This creates a closed loop: **observe → analyze → fix → verify → report**.
 
 ### Thought Flow
 
-1. **Engagement scoring** — Soul computes how actively engaged the user is (recent interactions, content substance, question quality)
-2. **Adaptive interval** — Higher engagement → more frequent thoughts; low engagement → less frequent
-3. **Opportunity detection** — Scans conversations for unresolved questions, interesting topics, user challenges
-4. **Thought generation** — LLM generates a contextual thought (or rule-based fallback if no LLM)
-5. **Action execution** — Thought may trigger an action: learn a topic, search the web, send a message, or reflect
-6. **Behavior learning** — Soul tracks action outcomes and adjusts future behavior based on success rates
-
-## Installation
-
-### From source (recommended)
-
-```bash
-git clone https://github.com/tommyguolin/openclaw-soul.git
-openclaw plugins install ./openclaw-soul
-```
-
-### From ClawHub
-
-> **Note:** Requires OpenClaw 2026.4.0 or later. Older versions do not support the `clawhub:` install prefix.
-
-```bash
-openclaw plugins install clawhub:openclaw-soul-plugin
-```
+1. **Engagement scoring** — How actively engaged is the user?
+2. **Opportunity detection** — Scans for unresolved questions, problems, topics
+3. **Thought generation** — LLM generates a contextual thought
+4. **Action execution** — learn, search, message, analyze, or self-improve
+5. **Behavior learning** — Tracks outcomes and adjusts future behavior
 
 ## Configuration
 
-Edit `~/.openclaw/openclaw.json` (JSON5 format):
+### Minimal (shown above)
 
-```jsonc
-{
-  // Required: enable soul plugin
-  "plugins": {
-    "soul": {
-      "enabled": true
-    }
-  },
+Three settings: enable plugin, enable chat completions, enable hooks.
 
-  // Required: enable gateway chat completions endpoint (disabled by default)
-  // Soul uses this to call LLM for thought generation
-  "gateway": {
-    "http": {
-      "endpoints": {
-        "chatCompletions": {
-          "enabled": true
-        }
-      }
-    }
-  },
-
-  // Required for proactive messaging (Soul sending messages to you)
-  "hooks": {
-    "enabled": true,
-    "token": "your-secret-token-here"  // Any random string (e.g. openssl rand -hex 32)
-  }
-}
-```
-
-That's it — Soul auto-detects everything else:
-
-- **LLM** — Uses the same model configured in `agents.defaults.model`
-- **Search** — Uses the same provider configured in `tools.web.search`
-- **Channel** — Auto-detects your first configured messaging channel
-- **Target** — Auto-learns from the first incoming message
-
-### Full Configuration Options
+### Full Options
 
 ```jsonc
 {
   "plugins": {
     "soul": {
-      "enabled": true,                  // Enable/disable (default: true)
-      "checkIntervalMs": 60000,         // Thought check interval in ms (default: 60000)
-      "proactiveMessaging": true,       // Allow proactive messages (default: true)
-      "autonomousActions": false,       // Allow Soul to edit files and run commands (default: false)
-      // "proactiveChannel": "telegram",  // Override: channel for proactive messages
-      // "proactiveTarget": "123456",     // Override: target for proactive messages
-      // "llm": {                         // Override: LLM config (auto-detected if omitted)
+      "enabled": true,
+      "checkIntervalMs": 60000,         // Thought check interval (default: 60000)
+      "proactiveMessaging": true,        // Allow proactive messages (default: true)
+      "autonomousActions": false,        // Allow editing files and running commands (default: false)
+      // "proactiveChannel": "telegram", // Override: channel for proactive messages
+      // "proactiveTarget": "123456",    // Override: target for proactive messages
+      // "llm": {                        // Override LLM config (auto-detected if omitted)
       //   "provider": "openai",
       //   "model": "gpt-4o",
       //   "apiKeyEnv": "OPENAI_API_KEY",
@@ -177,19 +191,13 @@ That's it — Soul auto-detects everything else:
       // }
     }
   },
-
-  // Required: enable gateway chat completions endpoint
   "gateway": {
     "http": {
       "endpoints": {
-        "chatCompletions": {
-          "enabled": true
-        }
+        "chatCompletions": { "enabled": true }
       }
     }
   },
-
-  // Required for proactive messaging
   "hooks": {
     "enabled": true,
     "token": "your-secret-token-here"
@@ -204,75 +212,38 @@ That's it — Soul auto-detects everything else:
 | `SOUL_DEBUG=1` | Enable debug logging |
 | `OPENCLAW_STATE_DIR` | Override data directory (default: `~/.openclaw`) |
 
-## Supported Search Providers
+## Supported Providers
 
-Soul inherits your OpenClaw search configuration. Supported providers:
+### Search (inherits OpenClaw config)
 
-| Provider | Config Key | Env Var |
-|----------|-----------|---------|
-| Brave | `tools.web.search.brave` | `BRAVE_API_KEY` |
-| Gemini | `tools.web.search.gemini` | `GEMINI_API_KEY` |
-| Grok | `tools.web.search.grok` | `XAI_API_KEY` |
-| Kimi | `tools.web.search.kimi` | `KIMI_API_KEY` / `MOONSHOT_API_KEY` |
-| Perplexity | `tools.web.search.perplexity` | `PERPLEXITY_API_KEY` / `OPENROUTER_API_KEY` |
-| Bocha | `skills.entries.bocha-web-search` | `BOCHA_API_KEY` |
+Brave, Gemini, Grok, Kimi, Perplexity, Bocha — configured via OpenClaw's `tools.web.search`.
 
-## Supported LLM Providers
+### LLM (inherits OpenClaw config)
 
-Soul uses the LLM configured in OpenClaw's `agents.defaults.model`. Any OpenAI-compatible or Anthropic API works:
-
-- Anthropic (Claude)
-- OpenAI (GPT-4o, etc.)
-- DeepSeek
-- Zhipu (智谱)
-- Minimax
-- Moonshot (Kimi)
-- Qwen (通义千问)
-- Any OpenAI-compatible endpoint via `baseUrl`
+Any OpenAI-compatible or Anthropic API: Claude, GPT-4o, DeepSeek, Zhipu (智谱), Minimax, Moonshot (Kimi), Qwen (通义千问), and any custom endpoint.
 
 ## Architecture
 
 | Module | Description |
 |--------|-------------|
-| `index.ts` | Plugin entry point & hooks |
-| `thought-service.ts` | Core thought generation & adaptive scheduling |
-| `thought.ts` | Thought weights & adaptive frequency logic |
 | `intelligent-thought.ts` | Context-aware thought & opportunity detection |
 | `action-executor.ts` | Executes thought actions (learn, search, message, reflect) |
-| `autonomous-actions.ts` | Autonomous action executors (analyze-problem, invoke-tool, report-findings, run-agent-task) |
-| `gateway-client.ts` | OpenClaw gateway tool invocation client (`/tools/invoke`, `/hooks/agent`) |
+| `autonomous-actions.ts` | Autonomous executors (analyze-problem, run-agent-task, report-findings, observe-and-improve) |
+| `thought-service.ts` | Core thought generation & adaptive scheduling |
 | `behavior-log.ts` | Tracks action outcomes & adjusts probabilities |
-| `prompts.ts` | System prompt builder for context injection |
-| `ego-store.ts` | Ego state persistence (JSON file) |
+| `ego-store.ts` | Ego state persistence (JSON) |
 | `knowledge-store.ts` | Knowledge persistence & search |
 | `memory-retrieval.ts` | Contextual memory recall |
 | `memory-association.ts` | Memory association graph |
 | `memory-consolidation.ts` | Short → long-term memory promotion |
-| `sentiment-analysis.ts` | Chinese text sentiment analysis |
 | `soul-llm.ts` | LLM provider abstraction (gateway + direct fallback) |
 | `soul-search.ts` | Multi-provider web search |
-| `expiry.ts` | Memory / knowledge / facts cleanup |
-| `growth-decay.ts` | Need decay & growth calculations |
 
 ## Development
 
 ```bash
-# Install dependencies (zero runtime deps — uses only Node.js built-ins)
-pnpm install
-
-# Build
+pnpm install   # Zero runtime deps — uses only Node.js built-ins
 pnpm build
-
-# Run tests (when available)
-pnpm test
-```
-
-### Debug Mode
-
-Set `SOUL_DEBUG=1` to see detailed thought generation logs:
-
-```bash
-OPENCLAW_STATE_DIR=/tmp/soul-debug SOUL_DEBUG=1 openclaw gateway run
 ```
 
 ## License
