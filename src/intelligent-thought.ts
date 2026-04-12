@@ -698,12 +698,16 @@ function analyzeContextualTriggers(ctx: ThoughtGenerationContext): DetectedThoug
     (g) => g.status === "active" &&
       /优化|improve|self|自主|观察|self-improvement|助理/i.test(g.title + g.description),
   );
-  if (improvementGoals.length > 0 && !hasConversationReplay) {
+  if (improvementGoals.length > 0) {
+    // Must be high enough priority to win over conversation-replay (P=70) and
+    // bond-deepen (P≤80). The 4-hour cooldown in action-executor prevents
+    // runaway self-modification.
+    const basePriority = hasConversationReplay ? 75 : 85;
     opportunities.push({
       type: "opportunity-detected",
       trigger: "opportunity",
       triggerDetail: `Active self-improvement goal: ${improvementGoals[0].title}`,
-      priority: 55,
+      priority: basePriority,
       source: "system-monitor",
       relatedNeeds: ["growth", "meaning"],
       motivation: `I have an active goal to improve myself: ${improvementGoals[0].title}`,
@@ -1143,6 +1147,14 @@ export async function generateIntelligentThought(
     return fallback;
   }
 
+  // Debug: log top opportunities for diagnosing routing issues
+  if (opportunities.length > 0) {
+    const topN = opportunities.slice(0, 5).map((o) =>
+      `${o.type}(P=${o.priority},action=${o.suggestedAction ?? "auto"})`,
+    ).join(", ");
+    log.info(`Top opportunities: ${topN}`);
+  }
+
   const selectedOpportunity = preferOpportunity || opportunities[0];
 
   // Use LLM for any thought with priority > 30 (covers most contextual triggers)
@@ -1164,8 +1176,12 @@ export async function generateIntelligentThought(
       // triggerDetail/motivation. Check if the LLM wants to investigate,
       // read files/logs, or analyze something — these should route to
       // analyze-problem, not learn-topic.
+      // EXCEPTION: don't override suggestedAction "observe-and-improve" —
+      // that's a deliberate self-modification action that must not be downgraded.
       const diagnosticKeywords = /读取|读一下|查看|检查|观察|排查|分析|分析一下|日志|log|investigate|inspect|check|analyze|read.*(file|log)|diagnos/i;
-      if (diagnosticKeywords.test(refinedContent) &&
+      const isSelfImprovementAction = selectedOpportunity.suggestedAction === "observe-and-improve";
+      if (!isSelfImprovementAction &&
+          diagnosticKeywords.test(refinedContent) &&
           (selectedOpportunity.type === "opportunity-detected" ||
            selectedOpportunity.type === "conversation-replay" ||
            selectedOpportunity.type === "skill-gap")) {
@@ -1175,10 +1191,10 @@ export async function generateIntelligentThought(
           logPaths: extractFilePaths(refinedContent + " " + selectedOpportunity.triggerDetail),
           sourcePaths: [],
         };
-      } else if (
+      } else if (!isSelfImprovementAction && (
         selectedOpportunity.type === "skill-gap" ||
         selectedOpportunity.type === "opportunity-detected"
-      ) {
+      )) {
         const topics = extractLearningTopics(
           refinedContent + " " + selectedOpportunity.triggerDetail,
         );
