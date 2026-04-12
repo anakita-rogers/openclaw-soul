@@ -12,15 +12,15 @@ Soul works silently in the background. Here's what you might see:
 
 **You asked about a timeout error yesterday. Soul investigated overnight:**
 
-> 你之前问的超时问题我查到了——根因是 embedding API 有 512 token 限制，不是 Soul 本身的问题。
+> That timeout issue you asked about — root cause is the embedding API's 512 token limit, not the plugin itself.
 
 **Soul found something relevant to your project:**
 
-> 关于你之前问的怎么让 AI 更主动，我查到李飞飞提出的"以人为本的AI"理念——强调 AI 应该主动理解人的需求而非被动响应。
+> Found an interesting approach to your question about making AI more proactive — Fei-Fei Li's "human-centered AI" framework emphasizes that AI should proactively understand user needs rather than just responding.
 
 **Soul autonomously analyzed a problem you mentioned:**
 
-> 日志里那个 413 错误是 memory search 输入超长导致的，跟 Soul 插件没关系。建议把 query 截断到 500 字符以内。
+> The 413 error in the logs is caused by oversized memory search input. Suggest truncating queries to under 500 characters.
 
 *These are real message formats — Soul composes them itself based on actual investigation results, not templates.*
 
@@ -220,7 +220,7 @@ Brave, Gemini, Grok, Kimi, Perplexity, Bocha — configured via OpenClaw's `tool
 
 ### LLM (inherits OpenClaw config)
 
-Any OpenAI-compatible or Anthropic API: Claude, GPT-4o, DeepSeek, Zhipu (智谱), Minimax, Moonshot (Kimi), Qwen (通义千问), and any custom endpoint.
+Any OpenAI-compatible or Anthropic API: Claude, GPT-4o, DeepSeek, Zhipu, Minimax, Moonshot (Kimi), Qwen, and any custom endpoint.
 
 ## Architecture
 
