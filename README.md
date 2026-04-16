@@ -125,7 +125,6 @@ Edit `~/.openclaw/openclaw.json`:
   },
   // Required for direct proactive message delivery
   "tools": {
-    "profile": "coding",  // or your preferred profile
     "alsoAllow": ["message"]
   }
 }
@@ -214,6 +213,7 @@ Three settings: enable plugin, enable chat completions, enable hooks.
     "token": "your-secret-token-here"
   },
   "tools": {
+    "profile": "coding",               // your existing profile, if any
     "alsoAllow": ["message"]
   }
 }
