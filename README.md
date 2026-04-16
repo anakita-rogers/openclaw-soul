@@ -213,8 +213,7 @@ Three settings: enable plugin, enable chat completions, enable hooks.
     "token": "your-secret-token-here"
   },
   "tools": {
-    "profile": "coding",               // your existing profile, if any
-    "alsoAllow": ["message"]
+    "alsoAllow": ["message"]           // add to your existing tools config
   }
 }
 ```
