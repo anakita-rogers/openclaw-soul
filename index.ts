@@ -214,6 +214,9 @@ const plugin = {
   },
 
   register(api: OpenClawPluginApi) {
+    // Debug: log raw pluginConfig to help diagnose config loading issues
+    log.info(`pluginConfig received: ${JSON.stringify(api.pluginConfig ?? {})}`);
+
     const config = cfg<PluginConfig>(api.pluginConfig);
 
     // Inner `enabled` defaults to true; only skip if explicitly set to false
