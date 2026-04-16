@@ -122,6 +122,11 @@ Edit `~/.openclaw/openclaw.json`:
   "hooks": {
     "enabled": true,
     "token": "your-secret-token-here"  // e.g. openssl rand -hex 32
+  },
+  // Required for direct proactive message delivery
+  "tools": {
+    "profile": "coding",  // or your preferred profile
+    "alsoAllow": ["message"]
   }
 }
 ```
@@ -207,6 +212,9 @@ Three settings: enable plugin, enable chat completions, enable hooks.
   "hooks": {
     "enabled": true,
     "token": "your-secret-token-here"
+  },
+  "tools": {
+    "alsoAllow": ["message"]
   }
 }
 ```

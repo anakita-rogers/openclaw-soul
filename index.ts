@@ -17,35 +17,40 @@ import { getGatewayPort } from "./src/env.js";
 const log = createSoulLogger("plugin");
 
 /**
- * Build a sendMessage function that delivers a proactive message through
- * the gateway hooks agent endpoint (POST /hooks/agent with deliver: true).
+ * Build a sendMessage function that delivers a proactive message directly
+ * to a channel via the gateway's /tools/invoke HTTP endpoint.
  *
- * This avoids using child_process.execSync which triggers OpenClaw's
- * security scanner. The gateway handles all channel routing transparently.
- * Requires hooks.enabled: true and hooks.token in openclaw.yaml.
+ * Uses the "message" tool with action="send", which delivers text verbatim
+ * without agent reprocessing. Requires the "message" tool to be available
+ * (add tools.alsoAllow: ["message"] to openclaw.yaml if using a restrictive
+ * tool profile like "coding").
+ *
+ * Falls back to /hooks/agent with deliver:true if /tools/invoke returns 404.
  */
 function buildSendMessage(opts: {
   openclawConfig: Record<string, unknown>;
   getChannel: () => string | undefined;
   getTarget: () => string | undefined;
 }): MessageSender {
-  // Pre-resolve hooks config at build time (not per-call)
+  const authToken = resolveGatewayAuthToken(opts.openclawConfig);
   const hooks = (opts.openclawConfig.hooks ?? {}) as Record<string, unknown>;
-  const hooksEnabled = hooks.enabled === true;
   const hooksToken = typeof hooks.token === "string" ? hooks.token.trim() : "";
   const gatewayPort = getGatewayPort(opts.openclawConfig);
 
-  if (!hooksEnabled || !hooksToken) {
+  const token = authToken || hooksToken;
+
+  if (!token) {
     log.warn(
-      "Proactive messaging requires hooks config. Add to openclaw.yaml:\n" +
-        '  hooks:\n    enabled: true\n    token: "<your-secret-token>"',
+      "Proactive messaging requires auth token. Add to openclaw.yaml:\n" +
+        '  gateway:\n    auth:\n      token: "<your-secret-token>"\n' +
+        "  or set hooks.token",
     );
   }
 
   return async (params) => {
-    if (!hooksEnabled || !hooksToken) {
+    if (!token) {
       throw new Error(
-        "sendMessage: hooks not configured. Set hooks.enabled=true and hooks.token in openclaw.yaml",
+        "sendMessage: no auth token. Set gateway.auth.token or hooks.token in openclaw.yaml",
       );
     }
 
@@ -55,8 +60,51 @@ function buildSendMessage(opts: {
       throw new Error("sendMessage: no channel/target resolved yet");
     }
 
-    const url = `http://127.0.0.1:${gatewayPort}/hooks/agent`;
-    const body = {
+    // Primary: use /tools/invoke with message tool for direct delivery
+    try {
+      const toolUrl = `http://127.0.0.1:${gatewayPort}/tools/invoke`;
+      const toolBody = {
+        tool: "message",
+        args: {
+          action: "send",
+          message: params.content,
+          channel,
+          target,
+        },
+      };
+
+      const toolRes = await fetch(toolUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(toolBody),
+        signal: AbortSignal.timeout(30_000),
+      });
+
+      if (toolRes.ok) {
+        log.info(`Proactive message delivered via ${channel} to ${target} (tools/invoke)`);
+        return;
+      }
+
+      // If 404 (tool not available), fall back to hooks
+      const toolData = await toolRes.json().catch(() => ({})) as { error?: { type?: string } };
+      if (toolRes.status !== 404 && toolData.error?.type !== "not_found") {
+        const text = await toolRes.text().catch(() => "");
+        throw new Error(`sendMessage via tools/invoke failed: ${toolRes.status} - ${text.slice(0, 200)}`);
+      }
+      log.info("message tool not available, falling back to /hooks/agent");
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("tools/invoke failed")) {
+        throw err;
+      }
+      log.info(`tools/invoke error, falling back to /hooks/agent: ${String(err)}`);
+    }
+
+    // Fallback: use /hooks/agent with deliver:true
+    const hooksUrl = `http://127.0.0.1:${gatewayPort}/hooks/agent`;
+    const hooksBody = {
       message: params.content,
       deliver: true,
       channel,
@@ -64,21 +112,21 @@ function buildSendMessage(opts: {
       name: "Soul",
     };
 
-    const res = await fetch(url, {
+    const hooksRes = await fetch(hooksUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${hooksToken}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(hooksBody),
       signal: AbortSignal.timeout(30_000),
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`sendMessage via hooks failed: ${res.status} - ${text.slice(0, 200)}`);
+    if (!hooksRes.ok) {
+      const text = await hooksRes.text().catch(() => "");
+      throw new Error(`sendMessage via hooks failed: ${hooksRes.status} - ${text.slice(0, 200)}`);
     }
-    log.info(`Proactive message delivered via ${channel} to ${target} (hooks)`);
+    log.info(`Proactive message delivered via ${channel} to ${target} (hooks fallback)`);
   };
 }
 
