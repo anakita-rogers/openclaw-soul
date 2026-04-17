@@ -2,7 +2,7 @@
   "id": "soul",
   "name": "Soul",
   "description": "Autonomous thinking, emotional awareness, and memory system for OpenClaw",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -52,6 +52,14 @@
             "description": "Custom API base URL (optional)"
           }
         }
+      },
+      "workspaceFiles": {
+        "type": "array",
+        "description": "File names to load from workspace dir as context. Default: [\"SOUL.md\",\"AGENTS.md\",\"MEMORY.md\",\"USER.md\"]"
+      },
+      "thoughtFrequency": {
+        "type": "number",
+        "description": "Thought frequency multiplier. Default: 1.0. Lower = more frequent (e.g. 0.2 for testing)"
       }
     }
   }

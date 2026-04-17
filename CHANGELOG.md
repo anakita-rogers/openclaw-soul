@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.1.0 (2026-04-17)
+
+### Changes
+
+- **Add `thoughtFrequency` config option**: New multiplier that scales all thought generation intervals and action cooldowns. Lower values = more frequent thinking and messaging (e.g. `0.2` for testing), higher values = less frequent. Default: `1.0`
+- **Scale action cooldowns by `thoughtFrequency`**: All action cooldowns (send-message, learn-topic, observe-and-improve, etc.) are now multiplied by `thoughtFrequency`, so faster thinking also means faster action readiness
+- **Lower value gate threshold with `thoughtFrequency`**: When `thoughtFrequency < 0.8`, the proactive message value gate is relaxed, allowing more messages to pass through instead of being rejected as NO_MESSAGE
+- **Lower `observe-and-improve` priority from 90/95 to 45/50**: Previously this action dominated every thought cycle, blocking message-sending actions from being selected. Now message-focused actions (send-message, proactive-research, etc.) can compete fairly
+- **Tell autonomous agent tasks to not ask for confirmation**: observe-and-improve and run-agent-task prompts now include an explicit instruction that no one will reply, preventing the agent from waiting for user confirmation on autonomous tasks
+
+### New config option
+
+```yaml
+# In openclaw.yaml under plugins.entries.soul.config:
+thoughtFrequency: 1.0  # Lower = more frequent (e.g. 0.2 for testing)
+```
+
 ## 2.0.1 (2026-04-12)
 
 ### Fixes

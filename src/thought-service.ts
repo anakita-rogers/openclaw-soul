@@ -84,6 +84,8 @@ export type ThoughtServiceOptions = {
   workspaceContext?: string;
   /** File names to load from state directory */
   workspaceFiles?: string[];
+  /** Thought frequency multiplier. Default: 1.0. Lower = more frequent. */
+  thoughtFrequency?: number;
 };
 
 export class ThoughtService {
@@ -106,6 +108,7 @@ export class ThoughtService {
   private hooksToken?: string;
   private workspaceContext: string;
   private workspaceFiles: string[];
+  private thoughtFrequency: number;
   private lastWorkspaceRefresh = 0;
   private recentThoughtTypes: string[] = [];
   private recentThoughtTopics: string[] = [];
@@ -129,6 +132,10 @@ export class ThoughtService {
     this.hooksToken = options.hooksToken;
     this.workspaceContext = options.workspaceContext ?? "";
     this.workspaceFiles = options.workspaceFiles ?? ["SOUL.md", "AGENTS.md", "MEMORY.md", "USER.md"];
+    this.thoughtFrequency = Math.max(0.1, Math.min(5, options.thoughtFrequency ?? 1.0));
+    if (this.thoughtFrequency !== 1.0) {
+      log.info(`Thought frequency: ${this.thoughtFrequency}x (all intervals ×${this.thoughtFrequency})`);
+    }
 
     // Initialize LLM generator from config
     if (options.llmConfig) {
@@ -491,6 +498,7 @@ export class ThoughtService {
       recentMemories: ego.memories.slice(-5),
       activeGoals: ego.goals.filter((g) => g.status === "active"),
       contextHints: [],
+      thoughtFrequency: this.thoughtFrequency,
     };
 
     if (!shouldGenerateThought(ctx)) {
@@ -638,6 +646,7 @@ export class ThoughtService {
       authToken: this.authToken,
       hooksToken: this.hooksToken,
       workspaceContext: this.workspaceContext || undefined,
+      thoughtFrequency: this.thoughtFrequency,
     });
 
     if (actionResult.result.success) {

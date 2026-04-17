@@ -271,6 +271,8 @@ export interface ActionExecutorOptions {
   hooksToken?: string;
   /** Workspace context from SOUL.md, AGENTS.md, etc. */
   workspaceContext?: string;
+  /** Frequency multiplier for action cooldowns. Default: 1.0. Lower = shorter cooldowns. */
+  thoughtFrequency?: number;
 }
 
 export async function executeThoughtAction(
@@ -288,7 +290,8 @@ export async function executeThoughtAction(
   }
 
   // Check per-type cooldown BEFORE creating behavior entry
-  const cooldownMs = ACTION_COOLDOWNS_MS[actionType] ?? 30 * 60 * 1000;
+  const freq = options.thoughtFrequency ?? 1.0;
+  const cooldownMs = (ACTION_COOLDOWNS_MS[actionType] ?? 30 * 60 * 1000) * freq;
   const lastTime = lastActionTime[actionType] ?? 0;
   if (Date.now() - lastTime < cooldownMs) {
     log.debug(`Action cooldown active for ${actionType}, skipping`);
@@ -596,6 +599,11 @@ async function generateValuableMessage(
       // Determine if this is a follow-up on a user's actual topic (vs. generic ego thought)
       const isUserTopicFollowUp = thought.type === "conversation-replay" && recentKnowledge.length > 0;
 
+      // Adjust value gate strictness based on thoughtFrequency.
+      // Lower frequency (e.g. 0.2) = more frequent thinking = relax the gate.
+      const freq = options.thoughtFrequency ?? 1.0;
+      const relaxGate = freq < 0.8;
+
       const prompt = `You are a proactive AI assistant. You must output ONLY a short message to send to the user, or NO_MESSAGE.
 
 ${langInstruction}
@@ -612,7 +620,7 @@ ${isUserTopicFollowUp
 - An answer to a question the user previously asked
 - A relevant update on a topic the user cares about`}
 
-**What does NOT count as valuable** (always say NO_MESSAGE):
+**What does NOT count as valuable** (always say NO_MESSAGE):${relaxGate ? "\n- (Note: value threshold is relaxed — err on the side of sharing if you have even a modest insight)" : ""}
 - Just saying hi, checking in, or "how are you"
 - Generic encouragement or small talk without substance
 - "I was thinking about..." without a concrete insight to share

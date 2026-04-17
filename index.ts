@@ -189,6 +189,8 @@ type PluginConfig = {
   llm?: SoulLLMConfig;
   autonomousActions?: boolean;
   workspaceFiles?: string[];
+  /** Thought frequency multiplier. Default: 1.0. Set lower (e.g. 0.2) for faster testing. */
+  thoughtFrequency?: number;
 };
 // Note: `enabled` in PluginConfig is the inner service toggle (default: true).
 // The outer `plugins.entries.soul.enabled` (in openclaw.json) controls plugin loading.
@@ -268,6 +270,7 @@ const plugin = {
       proactiveTarget: { type: "string", description: "Override: target for proactive messages (auto-detected if omitted)" },
       autonomousActions: { type: "boolean", description: "Enable autonomous write operations (editing files, running commands). Read operations always allowed. Default: false" },
       workspaceFiles: { type: "array", description: "File names to load from state dir as workspace context. Default: [\"SOUL.md\",\"AGENTS.md\",\"MEMORY.md\",\"USER.md\"]" },
+      thoughtFrequency: { type: "number", description: "Thought frequency multiplier. Default: 1.0. Lower = more frequent (e.g. 0.2 for testing), higher = less frequent" },
       llm: {
         type: "object",
         description: "Override: LLM config (auto-detected from OpenClaw if omitted)",
@@ -362,6 +365,7 @@ const plugin = {
         hooksToken: resolveHooksToken(openclawConfig),
         onThought: createSoulActionHandler(),
         workspaceFiles,
+        thoughtFrequency: config.thoughtFrequency ?? 1.0,
       });
 
       api.registerService({

@@ -366,13 +366,16 @@ function computeEngagementScore(ego: EgoState, timeSinceLastInteraction: number)
 }
 
 export function shouldGenerateThought(ctx: ThoughtGenerationContext): boolean {
-  // Absolute minimum: never think more often than every 3 minutes
-  if (ctx.timeSinceLastThought < 3 * 60 * 1000) {
+  const freq = ctx.thoughtFrequency ?? 1.0;
+
+  // Absolute minimum: never think more often than every 3 minutes (scaled)
+  const minInterval = 3 * 60 * 1000 * freq;
+  if (ctx.timeSinceLastThought < minInterval) {
     return false;
   }
 
-  // Don't generate thoughts during active conversation (last interaction < 3 min)
-  if (ctx.timeSinceLastInteraction < 3 * 60 * 1000) {
+  // Don't generate thoughts during active conversation (scaled)
+  if (ctx.timeSinceLastInteraction < 3 * 60 * 1000 * freq) {
     return false;
   }
 
@@ -382,35 +385,28 @@ export function shouldGenerateThought(ctx: ThoughtGenerationContext): boolean {
 
   // Urgent needs → higher frequency (every 5 min) but still respect minimum
   if (ctx.urgentNeeds.length > 0) {
-    return ctx.timeSinceLastThought >= 5 * 60 * 1000;
+    return ctx.timeSinceLastThought >= 5 * 60 * 1000 * freq;
   }
 
-  // User away for a long time (1+ hour) → low frequency, like a person who's
-  // idle and only occasionally thinks of something
-  if (ctx.timeSinceLastInteraction > 60 * 60 * 1000) {
-    // High engagement before going away → check every 20-30 min
-    // Low engagement → check every 40-60 min
+  // User away for a long time (1+ hour) → low frequency
+  if (ctx.timeSinceLastInteraction > 60 * 60 * 1000 * freq) {
     const interval = engagement > 0.5
       ? 20 * 60 * 1000
       : 45 * 60 * 1000;
-    // Add ±20% jitter to feel natural
     const jittered = interval * (0.8 + Math.random() * 0.4);
-    return ctx.timeSinceLastThought >= jittered;
+    return ctx.timeSinceLastThought >= jittered * freq;
   }
 
-  // User recently active (3 min – 1 hour since last interaction)
-  // High engagement (substantive conversations, questions) → 8-12 min
-  // Low engagement (test messages, short greetings) → 15-25 min
+  // User recently active (scaled)
   if (engagement > 0.6) {
-    const interval = (8 + Math.random() * 4) * 60 * 1000; // 8-12 min
-    return ctx.timeSinceLastThought >= interval;
+    const interval = (8 + Math.random() * 4) * 60 * 1000;
+    return ctx.timeSinceLastThought >= interval * freq;
   } else if (engagement > 0.3) {
-    const interval = (15 + Math.random() * 10) * 60 * 1000; // 15-25 min
-    return ctx.timeSinceLastThought >= interval;
+    const interval = (15 + Math.random() * 10) * 60 * 1000;
+    return ctx.timeSinceLastThought >= interval * freq;
   } else {
-    // Very low engagement — no substantive content, few interactions
-    const interval = (25 + Math.random() * 15) * 60 * 1000; // 25-40 min
-    return ctx.timeSinceLastThought >= interval;
+    const interval = (25 + Math.random() * 15) * 60 * 1000;
+    return ctx.timeSinceLastThought >= interval * freq;
   }
 }
 

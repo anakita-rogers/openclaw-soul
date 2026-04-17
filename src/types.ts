@@ -291,6 +291,8 @@ export interface ThoughtGenerationContext {
   recentMemories: SoulMemory[];
   activeGoals: Goal[];
   contextHints: string[];
+  /** Frequency multiplier for all thought intervals. Default: 1.0 */
+  thoughtFrequency?: number;
 }
 
 export interface SoulActionResult {

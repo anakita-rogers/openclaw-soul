@@ -174,7 +174,7 @@ function analyzeRecentInteraction(timeSinceLastInteraction: number): DetectedTho
       type: "bond-deepen",
       trigger: "bonding",
       triggerDetail: `Long time no interaction: ${Math.floor(minutesSince / 60)}h${Math.floor(minutesSince % 60)}m`,
-      // Cap at 85 so observe-and-improve (P=90/95) still wins for self-modification
+      // Cap at 85 — high urgency for reconnection, but leave room for other actions
       priority: Math.min(85, 70 + minutesSince * 0.1),
       source: "environmental-change",
       relatedNeeds: ["connection"],
@@ -809,10 +809,10 @@ function analyzeContextualTriggers(ctx: ThoughtGenerationContext): DetectedThoug
       /优化|improve|self|自主|观察|self-improvement|助理/i.test(g.title + g.description),
   );
   if (improvementGoals.length > 0) {
-    // Must be high enough priority to win over conversation-replay (P=70) and
-    // bond-deepen (P≤80). The 4-hour cooldown in action-executor prevents
-    // runaway self-modification.
-    const basePriority = hasConversationReplay ? 90 : 95;
+    // Keep at moderate priority so message-sending actions (send-message,
+    // proactive-research, etc.) can still be picked. The cooldown in
+    // action-executor prevents runaway self-modification.
+    const basePriority = hasConversationReplay ? 45 : 50;
     opportunities.push({
       type: "opportunity-detected",
       trigger: "opportunity",
