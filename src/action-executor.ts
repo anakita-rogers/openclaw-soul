@@ -539,9 +539,11 @@ async function generateValuableMessage(
       const userFacts = ego.userFacts.slice(0, 8);
 
       // Gather conversation context (last 7 days)
+      // Only use inbound messages — outbound proactive messages cause
+      // self-referential loops where Soul re-analyzes its own past output.
       const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       const recentInteractions = ego.memories
-        .filter((m) => m.type === "interaction" && m.timestamp >= oneWeekAgo)
+        .filter((m) => m.type === "interaction" && m.timestamp >= oneWeekAgo && m.tags.includes("inbound"))
         .sort((a, b) => b.timestamp - a.timestamp)
         .slice(0, 5);
 
