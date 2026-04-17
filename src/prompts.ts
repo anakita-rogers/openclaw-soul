@@ -19,9 +19,16 @@ export async function buildSoulSystemPrompt(
   relevantMemories?: SoulMemory[],
   workspaceContext?: string,
 ): Promise<string> {
-  // Extract recent proactive messages (sent by soul, not in reply to user)
+  // Only show proactive messages when the user is likely responding to them.
+  // Include messages sent within the last 30 minutes — if the user is chatting
+  // within that window, they're probably reacting to Soul's proactive message.
+  // Older proactive messages are hidden to prevent the agent from appearing
+  // to talk to itself when the user hasn't engaged.
+  const PROACTIVE_VISIBLE_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+  const now = Date.now();
   const recentProactiveMessages = ego.memories
     .filter((m) => m.type === "interaction" && m.tags.includes("proactive"))
+    .filter((m) => now - m.timestamp < PROACTIVE_VISIBLE_WINDOW_MS)
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 5);
   const proactiveMsgDesc = buildProactiveMessagesDescription(recentProactiveMessages);

@@ -13,6 +13,9 @@ const log = createSoulLogger("autonomous-actions");
 /** Max concurrent active tasks. */
 const MAX_ACTIVE_TASKS = 5;
 
+/** Track recently sent report messages to prevent duplicates. */
+const recentReportedMessages: Map<string, number> = new Map();
+
 export type AutonomousActionOptions = {
   autonomousActions: boolean;
   gatewayPort: number;
@@ -479,6 +482,23 @@ Output ONLY the message, nothing else.`;
     });
     return { result: { type: "report-findings", success: true, result: "skipped-self-referential" }, metricsChanged: [] };
   }
+
+  // Deduplicate: skip if similar report was sent recently
+  const msgNorm = message.trim().toLowerCase().slice(0, 200);
+  const dedupCutoff = Date.now() - 4 * 60 * 60 * 1000; // 4 hours
+  const isDuplicate = recentReportedMessages.has(msgNorm)
+    && (recentReportedMessages.get(msgNorm) ?? 0) > dedupCutoff;
+  if (isDuplicate) {
+    log.info("Report-findings: duplicate of recently sent message, skipping");
+    await updateEgoStore(resolveEgoStorePath(), (e) => {
+      for (const t of e.activeTasks ?? []) {
+        if (t.status === "completed" && !t.resultDelivered) t.resultDelivered = true;
+      }
+      return e;
+    });
+    return { result: { type: "report-findings", success: true, result: "skipped-duplicate" }, metricsChanged: [] };
+  }
+  recentReportedMessages.set(msgNorm, Date.now());
 
   try {
     await options.sendMessage({

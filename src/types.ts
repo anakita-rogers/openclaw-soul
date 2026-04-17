@@ -28,7 +28,9 @@ export type ActionType =
   | "analyze-problem"
   | "run-agent-task"
   | "report-findings"
-  | "observe-and-improve";
+  | "observe-and-improve"
+  | "proactive-research"
+  | "proactive-content-push";
 
 export type ThoughtTrigger =
   | "opportunity"

@@ -635,6 +635,115 @@ function analyzeConversationReplay(ctx: ThoughtGenerationContext): DetectedThoug
     }
   }
 
+  // =====================================================
+  // 6. Proactive research — mine conversations for latent needs
+  //    Find topics the user mentioned but didn't ask about,
+  //    then proactively search for useful information.
+  //    Max once per 24 hours.
+  //    LLM mining happens in the action executor, not here.
+  // =====================================================
+  const recentInbound = recentInteractions
+    .filter((m) => m.tags.includes("inbound") && m.timestamp > now - 3 * 24 * 60 * 60 * 1000)
+    .slice(0, 8);
+
+  if (recentInbound.length >= 2) {
+    // Check if proactive research was done in the last 24 hours
+    const hasRecentResearch = ego.memories.some(
+      (m) =>
+        m.type === "learning" &&
+        m.tags.includes("proactive-research") &&
+        m.timestamp > now - 24 * 60 * 60 * 1000,
+    );
+
+    if (!hasRecentResearch) {
+      // Collect conversation snippets for the action executor to mine
+      const snippets = recentInbound
+        .map((m) => m.content.slice(0, 150))
+        .join("\n");
+
+      opportunities.push({
+        type: "conversation-replay",
+        trigger: "curiosity",
+        triggerDetail: `Scanning recent conversations for proactive research opportunities`,
+        priority: 55,
+        source: "user-interaction",
+        relatedNeeds: ["connection", "growth"],
+        motivation: `Found ${recentInbound.length} recent messages to mine for actionable topics`,
+        suggestedAction: "proactive-research",
+        actionParams: {
+          conversationSnippets: snippets,
+          userProfile: (ego.userFacts ?? []).slice(0, 5).map((f) => f.content).join("; ") || "limited",
+        },
+      });
+    }
+  }
+
+  // =====================================================
+  // 7. Proactive content push — based on user profile interests
+  //    Push relevant articles/news based on what the user likes.
+  //    Infers country from language to pick appropriate sources.
+  //    Max once per 12 hours.
+  // =====================================================
+  const userInterests = (ego.userFacts ?? [])
+    .filter((f) => ["interest", "tech_stack", "project"].includes(f.category) && f.confidence >= 0.4)
+    .slice(0, 5);
+  const topicPrefs = (ego.userPreferences ?? [])
+    .filter((p) => p.aspect === "topic_preference" && p.confidence >= 0.4)
+    .slice(0, 3);
+
+  if (userInterests.length > 0) {
+    const hasRecentPush = ego.memories.some(
+      (m) =>
+        m.type === "learning" &&
+        m.tags.includes("proactive-content-push") &&
+        m.timestamp > now - 12 * 60 * 60 * 1000,
+    );
+
+    if (!hasRecentPush) {
+      const interestsSummary = userInterests.map((f) => `[${f.category}] ${f.content}`).join("; ");
+      const prefsSummary = topicPrefs.map((p) => p.preference).join("; ") || "";
+
+      // Infer country/region from language for content source hints
+      const lang = ego.userLanguage;
+      const userSamples = ego.recentUserMessages ?? [];
+      let contentRegionHint = "";
+      if (lang === "zh-CN") {
+        contentRegionHint = "Chinese sources: 知乎, B站(bilibili), 小红书, 微信公众号";
+      } else if (lang === "ja") {
+        contentRegionHint = "Japanese sources: note.com, Hatena, YouTube Japan";
+      } else if (lang === "ko") {
+        contentRegionHint = "Korean sources: Naver Blog, Brunch, YouTube Korea";
+      } else if (userSamples.length > 0) {
+        // Detect European language from samples for region hint
+        const sample = userSamples[0].toLowerCase();
+        if (/[æøå]/.test(sample)) contentRegionHint = "Danish sources: DR, Berlingske, Ingeniøren";
+        else if (/[äöüß]/.test(sample)) contentRegionHint = "German sources: Spiegel, Zeit, Heise";
+        else if (/[àâéèêëîïôùûüç]/.test(sample)) contentRegionHint = "French sources: Le Monde, Framablog";
+        else if (/[ñ¿¡]/.test(sample)) contentRegionHint = "Spanish sources: El País, Xataka";
+        else if (/[åäö]/.test(sample)) contentRegionHint = "Swedish sources: SvD, Expressen";
+        else contentRegionHint = "international sources: Hacker News, Dev.to, Medium, Ars Technica";
+      } else {
+        contentRegionHint = "international sources: Hacker News, Dev.to, Medium";
+      }
+
+      opportunities.push({
+        type: "opportunity-detected",
+        trigger: "curiosity",
+        triggerDetail: `Content push based on user interests: ${interestsSummary.slice(0, 100)}`,
+        priority: 50,
+        source: "user-interaction",
+        relatedNeeds: ["connection", "growth"],
+        motivation: `User is interested in: ${interestsSummary} — finding relevant content to share`,
+        suggestedAction: "proactive-content-push",
+        actionParams: {
+          interests: interestsSummary,
+          preferences: prefsSummary,
+          regionHint: contentRegionHint,
+        },
+      });
+    }
+  }
+
   return opportunities;
 }
 

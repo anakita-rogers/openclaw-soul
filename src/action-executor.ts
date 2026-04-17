@@ -199,6 +199,8 @@ const ACTION_COOLDOWNS_MS: Record<ActionType, number> = {
   "run-agent-task": 15 * 60 * 1000,
   "report-findings": 60 * 60 * 1000,
   "observe-and-improve": 4 * 60 * 60 * 1000,
+  "proactive-research": 4 * 60 * 60 * 1000,
+  "proactive-content-push": 8 * 60 * 60 * 1000, // 8 hours
 };
 
 const lastActionTime: Record<string, number> = {};
@@ -206,6 +208,25 @@ const lastActionTime: Record<string, number> = {};
 /** Track recent search queries to prevent repetitive searches */
 const recentSearchQueries: Map<string, number> = new Map();
 const SEARCH_DEDUP_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+/** Track recent proactive message content to prevent duplicates */
+const recentSentMessages: Map<string, number> = new Map();
+const MESSAGE_DEDUP_MS = 4 * 60 * 60 * 1000; // 4 hours
+
+function isDuplicateMessage(content: string): boolean {
+  const normalized = content.trim().toLowerCase().slice(0, 200);
+  // Clean up entries older than the dedup window
+  const cutoff = Date.now() - MESSAGE_DEDUP_MS;
+  for (const [key, ts] of recentSentMessages) {
+    if (ts < cutoff) recentSentMessages.delete(key);
+  }
+  return recentSentMessages.has(normalized);
+}
+
+function recordSentMessage(content: string): void {
+  const normalized = content.trim().toLowerCase().slice(0, 200);
+  recentSentMessages.set(normalized, Date.now());
+}
 
 /** Generic words that are not meaningful search queries */
 export const MEANINGLESS_QUERIES = new Set([
@@ -353,6 +374,14 @@ export async function executeThoughtAction(
         });
         break;
       }
+      case "proactive-research": {
+        actionResult = await executeProactiveResearch(thought, ego, options);
+        break;
+      }
+      case "proactive-content-push": {
+        actionResult = await executeProactiveContentPush(thought, ego, options);
+        break;
+      }
       default:
         actionResult = {
           result: {
@@ -446,8 +475,18 @@ async function executeSendMessage(
     };
   }
 
+  // Deduplicate: skip if similar message was sent recently
+  if (isDuplicateMessage(messageContent)) {
+    log.info(`Proactive message skipped: duplicate of recently sent message`);
+    return {
+      result: { type: "send-message", success: true, result: "skipped-duplicate" },
+      metricsChanged: [],
+    };
+  }
+
   try {
     await sendMessage({ to: target, content: messageContent, channel });
+    recordSentMessage(messageContent);
     lastActionTime["send-message"] = Date.now();
     log.info(`Proactive message sent via ${channel}: ${messageContent.slice(0, 50)}...`);
 
@@ -974,6 +1013,400 @@ Since you cannot directly access the internet, based on your existing knowledge,
       data: { query, result: searchResult, fallback: true },
     },
     metricsChanged: [{ need: "growth", delta: 3, reason: "attempted search (no network results)" }],
+  };
+}
+
+/**
+ * Proactive research: mine conversations for latent needs, search the web
+ * for useful information, and share findings with the user.
+ * Falls back to LLM knowledge if no search API is available.
+ */
+async function executeProactiveResearch(
+  thought: Thought,
+  ego: EgoState,
+  options: ActionExecutorOptions,
+): Promise<{ result: ActionResult; metricsChanged: MetricDelta[] }> {
+  const { channel, target, sendMessage, llmGenerator } = options;
+  if (!llmGenerator) {
+    return { result: { type: "proactive-research", success: false, error: "No LLM available" }, metricsChanged: [] };
+  }
+  if (!channel || !target || !sendMessage) {
+    return { result: { type: "proactive-research", success: false, error: "No channel/target/sender configured" }, metricsChanged: [] };
+  }
+
+  const snippets = String(thought.actionParams?.conversationSnippets ?? "");
+  const userProfile = String(thought.actionParams?.userProfile ?? "limited");
+
+  if (!snippets || snippets.length < 20) {
+    return { result: { type: "proactive-research", success: true, result: "skipped-no-conversations" }, metricsChanged: [] };
+  }
+
+  // Step 1: Use LLM to mine conversations for an actionable research topic
+  const miningPrompt = `Analyze these recent messages from a user and find ONE actionable topic that an AI assistant could proactively research to help the user. Look for things the user mentioned casually but didn't ask about — things where finding useful information would show genuine care.
+
+**User's recent messages**:
+${snippets.slice(0, 2000)}
+
+**User profile**: ${userProfile}
+
+Respond in JSON format ONLY:
+{"topic": "brief topic description", "reason": "why this would help the user", "query": "search query to find useful information (15-40 chars, search-engine friendly)"}
+
+Rules:
+- Only pick topics where research would provide genuine value to the user
+- Skip if the user already got a clear answer on the topic
+- Skip meta topics about the AI/bot/plugin itself
+- Skip generic greetings, small talk, or very vague statements
+- If nothing actionable is found, respond: {"topic": null}
+- Pick the SINGLE most interesting and useful topic`;
+
+  let topic: string | null = null;
+  let reason: string | null = null;
+  let searchQuery: string | null = null;
+
+  try {
+    const llmResponse = await llmGenerator(miningPrompt);
+    const cleaned = llmResponse.replace(/```json\n?|```\n?/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    topic = parsed.topic || null;
+    reason = parsed.reason || null;
+    searchQuery = parsed.query || null;
+  } catch {
+    log.debug("Proactive research: LLM mining failed");
+  }
+
+  if (!topic || !searchQuery) {
+    return { result: { type: "proactive-research", success: true, result: "no-actionable-topic-found" }, metricsChanged: [] };
+  }
+
+  log.info(`Proactive research topic: "${topic}", query: "${searchQuery}"`);
+
+  // Step 2: Search the web (or fallback to LLM knowledge)
+  let researchContent: string;
+  let usedWebSearch = false;
+
+  try {
+    const { soulWebSearch } = await import("./soul-search.js");
+    const searchResult = await soulWebSearch(searchQuery, options.openclawConfig);
+    if (searchResult?.results?.length) {
+      usedWebSearch = true;
+      const topResults = searchResult.results.slice(0, 5);
+      const resultText = topResults
+        .map((r: { title?: string; content?: string; url?: string }) =>
+          `- ${r.title || ""}: ${(r.content || "").slice(0, 150)}`)
+        .join("\n");
+
+      // Dedup check
+      const prefix20 = searchQuery.slice(0, 20).toLowerCase();
+      const cutoff = Date.now() - 6 * 60 * 60 * 1000;
+      if (recentSearchQueries.has(prefix20) && (recentSearchQueries.get(prefix20) ?? 0) > cutoff) {
+        return { result: { type: "proactive-research", success: true, result: "skipped-duplicate-search" }, metricsChanged: [] };
+      }
+      recentSearchQueries.set(prefix20, Date.now());
+
+      // Extract insights from search results
+      const extractPrompt = `Based on these search results about "${topic}", extract 2-3 key insights that would be genuinely useful to the user.
+
+Search results:
+${resultText}
+
+Write 2-3 concise insights in flowing prose (NOT a numbered list). Each insight should be 1-2 sentences. Focus on practical, actionable information.`;
+
+      researchContent = await llmGenerator(extractPrompt);
+    } else {
+      throw new Error("No search results");
+    }
+  } catch {
+    // Fallback: use LLM's own knowledge
+    log.info("Proactive research: falling back to LLM knowledge");
+    const fallbackPrompt = `The user mentioned something related to "${topic}". Based on your knowledge, share 2-3 genuinely useful tips or recommendations in 2-3 sentences. Be specific and practical. Do NOT use numbered lists.`;
+    researchContent = await llmGenerator(fallbackPrompt);
+  }
+
+  researchContent = researchContent.replace(/<think[\s\S]*?<\/think>/gi, "").trim().slice(0, 500);
+  if (!researchContent || researchContent.length < 20) {
+    return { result: { type: "proactive-research", success: true, result: "no-valuable-content" }, metricsChanged: [] };
+  }
+
+  // Step 3: Deduplicate outgoing message
+  if (isDuplicateMessage(researchContent)) {
+    log.info("Proactive research: duplicate message, skipping");
+    return { result: { type: "proactive-research", success: true, result: "skipped-duplicate-message" }, metricsChanged: [] };
+  }
+
+  // Step 4: Send message to user
+  // Use the language samples for matching
+  const userSamples = ego.recentUserMessages ?? [];
+  const cjkLang = ego.userLanguage === "zh-CN" ? "Chinese (中文)"
+    : ego.userLanguage === "ja" ? "Japanese"
+      : ego.userLanguage === "ko" ? "Korean"
+        : undefined;
+  const langInstruction = cjkLang
+    ? `Write in ${cjkLang}.`
+    : userSamples.length > 0
+      ? `The user writes in this language:\n${userSamples.slice(0, 3).join("\n")}\nWrite in the SAME language.`
+      : "Use the same language as the user's messages above.";
+
+  const messagePrompt = `You are sending a proactive message to the user about something you researched for them.
+
+**What you researched**: ${topic}
+**Why**: ${reason}
+**What you found**:
+${researchContent}
+
+${langInstruction}
+
+Write 2-3 sentences as a natural message to the user. Rules:
+- Start with a natural opening (e.g. "我后来想了想...", "I was thinking about what you mentioned...", "对了...")
+- Share the most useful finding — be specific, not vague
+- Do NOT use numbered lists
+- Do NOT say "I searched" or "I researched" — just share the finding naturally
+- Sound like a knowledgeable friend who cares`;
+
+  const message = await llmGenerator(messagePrompt);
+  const cleanedMessage = message.replace(/<think[\s\S]*?<\/think>/gi, "").trim().slice(0, 400);
+
+  if (!cleanedMessage || cleanedMessage.length < 10) {
+    return { result: { type: "proactive-research", success: true, result: "no-message-generated" }, metricsChanged: [] };
+  }
+
+  try {
+    await sendMessage({ to: target, content: cleanedMessage, channel });
+    recordSentMessage(cleanedMessage);
+    lastActionTime["proactive-research"] = Date.now();
+    log.info(`Proactive research sent via ${channel}: ${cleanedMessage.slice(0, 80)}...`);
+  } catch (err) {
+    return { result: { type: "proactive-research", success: false, error: String(err) }, metricsChanged: [] };
+  }
+
+  // Store research results in knowledge store
+  try {
+    const { addKnowledgeItem } = await import("./knowledge-store.js");
+    await addKnowledgeItem({
+      topic,
+      content: researchContent.slice(0, 300),
+      source: usedWebSearch ? "web-search" : "reflection",
+      tags: ["proactive-research", ...topic.toLowerCase().split(/\s+/).filter((w) => w.length > 2).slice(0, 3)],
+      confidence: 0.7,
+    });
+  } catch {
+    // Knowledge store write failure is non-critical
+  }
+
+  // Store as a soul memory
+  const { addSoulMemoryToEgo } = await import("./soul-actions.js");
+  const { randomBytes } = await import("node:crypto");
+  await addSoulMemoryToEgo({
+    id: randomBytes(8).toString("hex"),
+    type: "learning",
+    content: `Proactive research: ${topic} — ${researchContent.slice(0, 100)}`,
+    emotion: 0.3,
+    valence: "positive",
+    importance: 0.6,
+    timestamp: Date.now(),
+    tags: ["learning", "proactive-research", ...topic.toLowerCase().split(/\s+/).filter((w) => w.length > 2).slice(0, 3)],
+  });
+
+  return {
+    result: { type: "proactive-research", success: true, result: cleanedMessage },
+    metricsChanged: [
+      { need: "connection", delta: 10, reason: "proactively researched for user" },
+      { need: "growth", delta: 5, reason: "learned something new" },
+    ],
+  };
+}
+
+/**
+ * Proactive content push: based on user profile interests and inferred country,
+ * search for relevant articles/news and share with the user.
+ * Falls back to LLM knowledge if no search API is available.
+ */
+async function executeProactiveContentPush(
+  thought: Thought,
+  ego: EgoState,
+  options: ActionExecutorOptions,
+): Promise<{ result: ActionResult; metricsChanged: MetricDelta[] }> {
+  const { channel, target, sendMessage, llmGenerator } = options;
+  if (!llmGenerator) {
+    return { result: { type: "proactive-content-push", success: false, error: "No LLM available" }, metricsChanged: [] };
+  }
+  if (!channel || !target || !sendMessage) {
+    return { result: { type: "proactive-content-push", success: false, error: "No channel/target/sender configured" }, metricsChanged: [] };
+  }
+
+  const interests = String(thought.actionParams?.interests ?? "");
+  const preferences = String(thought.actionParams?.preferences ?? "");
+  const regionHint = String(thought.actionParams?.regionHint ?? "international sources");
+
+  if (!interests || interests.length < 5) {
+    return { result: { type: "proactive-content-push", success: true, result: "skipped-no-interests" }, metricsChanged: [] };
+  }
+
+  // Step 1: Use LLM to generate a search query from user interests
+  const queryPrompt = `Based on the user's interests, generate ONE specific search query to find a recent interesting article or news item the user would enjoy.
+
+**User interests**: ${interests}
+**User preferences**: ${preferences || "unknown"}
+**Content sources to prefer**: ${regionHint}
+
+Respond in JSON format ONLY:
+{"query": "search query (15-40 chars, specific and search-engine friendly)", "topic": "brief topic description", "why": "why this would interest the user"}
+
+Rules:
+- Pick ONE specific angle, not a broad topic
+- Make the query specific enough to find real articles (not generic)
+- If user is a developer, prefer technical articles, tutorials, or tool releases
+- If user has hobby interests, prefer recent news or interesting finds about them
+- If nothing specific enough, respond: {"query": null}`;
+
+  let searchQuery: string | null = null;
+  let topic: string | null = null;
+  let why: string | null = null;
+
+  try {
+    const response = await llmGenerator(queryPrompt);
+    const cleaned = response.replace(/```json\n?|```\n?/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    searchQuery = parsed.query || null;
+    topic = parsed.topic || null;
+    why = parsed.why || null;
+  } catch {
+    log.debug("Content push: LLM query generation failed");
+  }
+
+  if (!searchQuery) {
+    return { result: { type: "proactive-content-push", success: true, result: "no-query-generated" }, metricsChanged: [] };
+  }
+
+  log.info(`Content push query: "${searchQuery}" (topic: ${topic})`);
+
+  // Step 2: Search the web
+  let articleContent: string;
+  let articleUrl: string | undefined;
+
+  try {
+    const { soulWebSearch } = await import("./soul-search.js");
+    const searchResult = await soulWebSearch(searchQuery, options.openclawConfig);
+    if (searchResult?.results?.length) {
+      const topResults = searchResult.results.slice(0, 5);
+      articleUrl = topResults[0]?.url;
+      const resultText = topResults
+        .map((r: { title?: string; content?: string }) =>
+          `- ${r.title || ""}: ${(r.content || "").slice(0, 150)}`)
+        .join("\n");
+
+      const extractPrompt = `From these search results about "${topic}", extract the most interesting finding for the user.
+
+**User interests**: ${interests}
+
+Search results:
+${resultText}
+
+In 2-3 sentences, describe the most interesting finding. Be specific — mention actual names, numbers, or concrete details. Do NOT use numbered lists.`;
+
+      articleContent = await llmGenerator(extractPrompt);
+    } else {
+      throw new Error("No results");
+    }
+  } catch {
+    // Fallback to LLM knowledge
+    log.info("Content push: falling back to LLM knowledge");
+    const fallbackPrompt = `Share an interesting recent development or insight related to "${interests}" in 2-3 sentences. Be specific and mention concrete details. Do NOT use numbered lists.`;
+    articleContent = await llmGenerator(fallbackPrompt);
+  }
+
+  articleContent = articleContent.replace(/<think[\s\S]*?<\/think>/gi, "").trim().slice(0, 500);
+  if (!articleContent || articleContent.length < 20) {
+    return { result: { type: "proactive-content-push", success: true, result: "no-content" }, metricsChanged: [] };
+  }
+
+  // Step 3: Generate message
+  const userSamples = ego.recentUserMessages ?? [];
+  const cjkLang = ego.userLanguage === "zh-CN" ? "Chinese (中文)"
+    : ego.userLanguage === "ja" ? "Japanese"
+      : ego.userLanguage === "ko" ? "Korean"
+        : undefined;
+  const langInstruction = cjkLang
+    ? `Write in ${cjkLang}.`
+    : userSamples.length > 0
+      ? `The user writes in this language:\n${userSamples.slice(0, 3).join("\n")}\nWrite in the SAME language.`
+      : "Use the same language as the user.";
+
+  const messagePrompt = `You found an interesting article/news item for the user based on their interests.
+
+**User interests**: ${interests}
+**What you found**: ${articleContent}
+${articleUrl ? `**Source**: ${articleUrl}` : ""}
+
+${langInstruction}
+
+Write 2-3 sentences as a natural message sharing this find. Rules:
+- Start with a natural opening about why you're sharing this
+- Highlight the most interesting point — be specific
+- ${articleUrl ? `Include the source URL at the end: ${articleUrl}` : "Do NOT make up URLs"}
+- Do NOT use numbered lists
+- Do NOT say "I searched" or "I found an article" — share naturally like a friend would`;
+
+  const message = await llmGenerator(messagePrompt);
+  const cleanedMessage = message.replace(/<think[\s\S]*?<\/think>/gi, "").trim().slice(0, 500);
+
+  if (!cleanedMessage || cleanedMessage.length < 10) {
+    return { result: { type: "proactive-content-push", success: true, result: "no-message" }, metricsChanged: [] };
+  }
+
+  // Dedup check
+  if (isDuplicateMessage(cleanedMessage)) {
+    return { result: { type: "proactive-content-push", success: true, result: "skipped-duplicate" }, metricsChanged: [] };
+  }
+
+  try {
+    await sendMessage({ to: target, content: cleanedMessage, channel });
+    recordSentMessage(cleanedMessage);
+    lastActionTime["proactive-content-push"] = Date.now();
+    log.info(`Content push sent via ${channel}: ${cleanedMessage.slice(0, 80)}...`);
+  } catch (err) {
+    return { result: { type: "proactive-content-push", success: false, error: String(err) }, metricsChanged: [] };
+  }
+
+  // Store in knowledge
+  try {
+    const { addKnowledgeItem } = await import("./knowledge-store.js");
+    await addKnowledgeItem({
+      topic: topic ?? "content-push",
+      content: articleContent.slice(0, 300),
+      source: "web-search",
+      tags: ["proactive-content-push", ...(topic?.toLowerCase().split(/\s+/).filter((w) => w.length > 2).slice(0, 3) ?? [])],
+      confidence: 0.6,
+      sourceUrl: articleUrl,
+    });
+  } catch {
+    // Non-critical
+  }
+
+  // Store as soul memory
+  try {
+    const { addSoulMemoryToEgo } = await import("./soul-actions.js");
+    const { randomBytes } = await import("node:crypto");
+    await addSoulMemoryToEgo({
+      id: randomBytes(8).toString("hex"),
+      type: "learning",
+      content: `Content push: ${topic} — ${articleContent.slice(0, 80)}`,
+      emotion: 0.3,
+      valence: "positive",
+      importance: 0.5,
+      timestamp: Date.now(),
+      tags: ["learning", "proactive-content-push"],
+    });
+  } catch {
+    // Non-critical
+  }
+
+  return {
+    result: { type: "proactive-content-push", success: true, result: cleanedMessage },
+    metricsChanged: [
+      { need: "connection", delta: 8, reason: "proactively shared relevant content" },
+      { need: "growth", delta: 3, reason: "learned about user interests" },
+    ],
   };
 }
 
