@@ -298,6 +298,8 @@ export async function executeRunAgentTask(
   const agentMessage = `[Soul Autonomous Task]
 ${thought.content}
 
+**IMPORTANT**: This is an AUTONOMOUS task. No one will reply to you. Do NOT ask for confirmation or permission — start working immediately.
+
 Context:
 - User profile: ${userContext || "limited"}
 - Trigger: ${thought.triggerDetail}${readOnlyInstruction}${analysisContext}${options.workspaceContext ? `\n- Workspace rules:\n${options.workspaceContext}` : ""}
@@ -566,6 +568,8 @@ export async function executeObserveAndImprove(
   const prompt = `[Soul Self-Improvement Task]
 
 You are a TypeScript developer tasked with improving the Soul plugin at ${soulDir}.
+
+**IMPORTANT**: This is an AUTONOMOUS task. No one will reply to you. Do NOT ask for confirmation or permission — just read, analyze, and act. Start working immediately.
 
 **User's goal**: Make Soul a proactive, human-like assistant that can observe, analyze, and fix issues autonomously.
 
