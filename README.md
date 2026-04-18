@@ -100,22 +100,32 @@ git clone https://github.com/tommyguolin/openclaw-soul.git
 openclaw plugins install ./openclaw-soul
 ```
 
-### 2. Enable proactive messaging
+### 2. Configure
 
-Soul needs permission to send you messages. Run these commands:
+Soul needs three things to work: access to the LLM, permission to send you messages, and a message delivery channel. Run these commands (replace `your-secret-token` with your own random string):
 
 ```bash
+# Allow Soul to call the LLM through the gateway
+openclaw config set gateway.http.endpoints.chatCompletions.enabled true
+
+# Enable hooks — Soul uses this to send proactive messages
 openclaw config set hooks.enabled true
-openclaw config set hooks.token "$(openssl rand -hex 32)"
+openclaw config set hooks.token your-secret-token
+
+# Allow the "message" tool — Soul uses this to deliver messages to you
 openclaw config set tools.alsoAllow message
 ```
 
-### 3. That's it
+### 3. Restart gateway
 
-Restart your gateway. Soul auto-detects:
-- **LLM** — Uses your `agents.defaults.model` config
+```bash
+openclaw gateway restart
+```
+
+Soul auto-detects everything else:
+- **LLM** — Uses your `agents.defaults.model` config (the same model your AI assistant uses)
 - **Search** — Uses your `tools.web.search` provider
-- **Channel** — Auto-detects your first messaging channel
+- **Channel** — Auto-detects your first messaging channel (Telegram, Discord, Feishu, etc.)
 - **Target** — Auto-learns from your first incoming message
 
 Just start chatting. Soul begins thinking and building a profile immediately.
@@ -153,33 +163,93 @@ This creates a closed loop: **observe → analyze → fix → verify → report*
 
 ## Configuration
 
-All options are optional. Soul works out of the box.
-
 ### Plugin Options
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `enabled` | `true` | Enable/disable Soul |
-| `autonomousActions` | `false` | Allow Soul to edit files and run commands. Read operations (reading logs, analyzing code) are always allowed |
-| `thoughtFrequency` | `1.0` | Thought frequency multiplier. `0.2` for testing, `2.0` for quiet |
+These are the options shown in the install UI. All are optional — defaults work for most users.
+
+#### `autonomousActions` (default: `false`)
+
+Whether Soul can edit files and run shell commands on its own. When `false` (default), Soul can still **read** files and run diagnostic commands (cat, grep, tail, ls), but cannot modify anything. When `true`, Soul can autonomously fix bugs, edit its own code, and run any command.
 
 ```bash
-# Example: enable autonomous actions
+# Let Soul edit files and run commands autonomously
 openclaw config set plugins.entries.soul.config.autonomousActions true
 ```
 
-### Advanced Options (via raw config)
+#### `thoughtFrequency` (default: `1.0`)
 
-These are hidden from the install UI but work if set directly:
+Multiplier for how often Soul generates thoughts and sends messages. Lower = more active, higher = quieter.
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `checkIntervalMs` | `60000` | Thought check interval (ms) |
-| `proactiveMessaging` | `true` | Allow proactive messages |
-| `proactiveChannel` | auto | Override channel for proactive messages |
-| `proactiveTarget` | auto | Override target (auto-learned from first message) |
-| `workspaceFiles` | `["SOUL.md","AGENTS.md","MEMORY.md","USER.md"]` | Files to load as workspace context |
-| `llm` | auto | Override LLM config (auto-detected from OpenClaw) |
+```bash
+# Testing: think every ~1 min, message frequently
+openclaw config set plugins.entries.soul.config.thoughtFrequency 0.2
+
+# Quiet: think less often, message rarely
+openclaw config set plugins.entries.soul.config.thoughtFrequency 2.0
+```
+
+#### `enabled` (default: `true`)
+
+Disable Soul without uninstalling it.
+
+```bash
+# Temporarily disable Soul
+openclaw config set plugins.entries.soul.config.enabled false
+```
+
+### Advanced Options
+
+These are not shown in the install UI but can be set via `openclaw config set` if needed.
+
+#### `checkIntervalMs` (default: `60000`)
+
+How often (in milliseconds) Soul checks whether to generate a new thought. The default (60 seconds) works well for most users. This is the base interval — Soul adjusts it dynamically based on engagement.
+
+```bash
+# Check every 30 seconds (more responsive)
+openclaw config set plugins.entries.soul.config.checkIntervalMs 30000
+```
+
+#### `proactiveMessaging` (default: `true`)
+
+Whether Soul can send you messages proactively. Set to `false` to disable all outbound messages while keeping the thinking and memory features.
+
+```bash
+# Disable proactive messaging (Soul still thinks and remembers, just stays silent)
+openclaw config set plugins.entries.soul.config.proactiveMessaging false
+```
+
+#### `proactiveChannel` / `proactiveTarget` (default: auto-detected)
+
+By default Soul auto-detects your messaging channel and learns your user ID from the first message you send. Override these if auto-detection doesn't work or you want Soul to message a specific channel/target.
+
+```bash
+# Override channel (e.g. if you have multiple channels)
+openclaw config set plugins.entries.soul.config.proactiveChannel telegram
+
+# Override target (your user/chat ID on that channel)
+openclaw config set plugins.entries.soul.config.proactiveTarget 123456789
+```
+
+#### `workspaceFiles` (default: `["SOUL.md","AGENTS.md","MEMORY.md","USER.md"]`)
+
+File names Soul loads from its state directory (`~/.openclaw/agents/soul/`) as workspace context. You can put custom instructions in these files to guide Soul's behavior.
+
+```bash
+# Add a custom instructions file
+openclaw config set plugins.entries.soul.config.workspaceFiles '["SOUL.md","AGENTS.md","MEMORY.md","USER.md","CUSTOM.md"]'
+```
+
+#### `llm` (default: auto-detected from OpenClaw)
+
+Override the LLM Soul uses for thinking. By default Soul uses the same model configured in `agents.defaults.model`. Only set this if you want Soul to use a different model than your main assistant.
+
+```bash
+# Use a specific model for Soul
+openclaw config set plugins.entries.soul.config.llm.provider openai
+openclaw config set plugins.entries.soul.config.llm.model gpt-4o
+openclaw config set plugins.entries.soul.config.llm.apiKeyEnv OPENAI_API_KEY
+```
 
 ### Environment Variables
 
