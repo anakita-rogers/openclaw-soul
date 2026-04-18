@@ -1446,6 +1446,25 @@ Describe in 1-2 sentences what these memories make you think about, and what you
     }
   }
 
+  // If the reflection reveals an actionable intent (task to do, info to share),
+  // proactively send it to the user instead of silently thinking.
+  const actionablePattern = /应该|可以|需要|想要|打算|我要|要去|我来|I should|I can|I want|I need|I'll|let me|I plan/i;
+  if (actionablePattern.test(memorySummary) && options.sendMessage && options.channel && options.target) {
+    try {
+      await options.sendMessage({ to: options.target, content: memorySummary, channel: options.channel });
+      log.info("Recall memory: actionable reflection sent as message");
+      return {
+        result: { type: "recall-memory", success: true, result: "reflection-shared-as-message" },
+        metricsChanged: [
+          { need: "meaning", delta: 3, reason: "recollection brings a sense of connection" },
+          { need: "connection", delta: 2, reason: "shared reflection with user" },
+        ],
+      };
+    } catch {
+      // Fall through to return silent reflection
+    }
+  }
+
   return {
     result: {
       type: "recall-memory",
