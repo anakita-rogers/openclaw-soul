@@ -172,6 +172,7 @@ function resolveHooksToken(openclawConfig: Record<string, unknown>): string | un
 
 let thoughtService: ThoughtService | null = null;
 let serviceCreated = false;
+let lastPluginConfig = "";
 
 /**
  * Extract a typed config value from pluginConfig.
@@ -285,8 +286,11 @@ const plugin = {
   },
 
   register(api: OpenClawPluginApi) {
-    // Debug: log raw pluginConfig to help diagnose config loading issues
-    log.info(`pluginConfig received: ${JSON.stringify(api.pluginConfig ?? {})}`);
+    const configStr = JSON.stringify(api.pluginConfig ?? {});
+    if (configStr !== lastPluginConfig) {
+      lastPluginConfig = configStr;
+      log.info(`pluginConfig received: ${configStr}`);
+    }
 
     const config = cfg<PluginConfig>(api.pluginConfig);
 
