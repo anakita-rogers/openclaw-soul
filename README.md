@@ -92,58 +92,30 @@ Soul remembers your conversations, preferences, and knowledge:
 ### 1. Install
 
 ```bash
-# From source
+# From ClawHub (recommended)
+openclaw plugins install clawhub:openclaw-soul-plugin
+
+# Or from source
 git clone https://github.com/tommyguolin/openclaw-soul.git
 openclaw plugins install ./openclaw-soul
-
-# Or from ClawHub (requires OpenClaw 2026.4.0+)
-openclaw plugins install clawhub:openclaw-soul-plugin
 ```
 
-### 2. Configure
+### 2. That's it
 
-Edit `~/.openclaw/openclaw.json`:
-
-```jsonc
-{
-  "plugins": {
-    "entries": {
-      "soul": {
-        "enabled": true
-      }
-    }
-  },
-  // Required: enable gateway chat completions endpoint
-  "gateway": {
-    "http": {
-      "endpoints": {
-        "chatCompletions": {
-          "enabled": true
-        }
-      }
-    }
-  },
-  // Required for proactive messaging
-  "hooks": {
-    "enabled": true,
-    "token": "your-secret-token-here"  // e.g. openssl rand -hex 32
-  },
-  // Required for direct proactive message delivery
-  "tools": {
-    "alsoAllow": ["message"]
-  }
-}
-```
-
-### 3. That's it
-
-Soul auto-detects:
+Soul activates automatically after install — no configuration needed. It auto-detects:
 - **LLM** — Uses your `agents.defaults.model` config
 - **Search** — Uses your `tools.web.search` provider
 - **Channel** — Auto-detects your first messaging channel
 - **Target** — Auto-learns from your first incoming message
 
 Just start chatting. Soul begins thinking and building a profile immediately.
+
+> **Note**: For proactive messaging (Soul sending you messages first), you need hooks enabled:
+> ```bash
+> openclaw config set hooks.enabled true
+> openclaw config set hooks.token "$(openssl rand -hex 32)"
+> openclaw config set tools.alsoAllow message
+> ```
 
 ## How It Works
 
@@ -178,56 +150,33 @@ This creates a closed loop: **observe → analyze → fix → verify → report*
 
 ## Configuration
 
-### Minimal (shown above)
+All options are optional. Soul works out of the box.
 
-Three settings: enable plugin, enable chat completions, enable hooks.
+### Plugin Options
 
-### Full Options
+| Option | Default | Description |
+|--------|---------|-------------|
+| `enabled` | `true` | Enable/disable Soul |
+| `autonomousActions` | `false` | Allow Soul to edit files and run commands. Read operations (reading logs, analyzing code) are always allowed |
+| `thoughtFrequency` | `1.0` | Thought frequency multiplier. `0.2` for testing, `2.0` for quiet |
 
-```jsonc
-{
-  "plugins": {
-    "entries": {
-      "soul": {
-        "enabled": true,
-        "config": {
-          "checkIntervalMs": 60000,         // Thought check interval (default: 60000)
-          "proactiveMessaging": true,        // Allow proactive messages (default: true)
-          "autonomousActions": false,        // Allow editing files and running commands (default: false)
-          "thoughtFrequency": 1.0            // Thought frequency multiplier (default: 1.0)
-          // Lower = more frequent thinking & messaging. Examples:
-          //   0.2 — testing: thoughts every ~1 min, messages every ~1 min
-          //   0.5 — chatty: 2x more frequent than default
-          //   1.0 — default: balanced (8-12 min active, 20-45 min away)
-          //   2.0 — quiet: 2x less frequent
-          // "proactiveChannel": "telegram",  // Override: channel for proactive messages
-          // "proactiveTarget": "123456",     // Override: target for proactive messages
-          // "llm": {                         // Override LLM config (auto-detected if omitted)
-          //   "provider": "openai",
-          //   "model": "gpt-4o",
-          //   "apiKeyEnv": "OPENAI_API_KEY",
-          //   "baseUrl": "https://api.openai.com/v1"
-          // }
-        }
-      }
-    }
-  },
-  "gateway": {
-    "http": {
-      "endpoints": {
-        "chatCompletions": { "enabled": true }
-      }
-    }
-  },
-  "hooks": {
-    "enabled": true,
-    "token": "your-secret-token-here"
-  },
-  "tools": {
-    "alsoAllow": ["message"]           // add to your existing tools config
-  }
-}
+```bash
+# Example: enable autonomous actions
+openclaw config set plugins.entries.soul.config.autonomousActions true
 ```
+
+### Advanced Options (via raw config)
+
+These are hidden from the install UI but work if set directly:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `checkIntervalMs` | `60000` | Thought check interval (ms) |
+| `proactiveMessaging` | `true` | Allow proactive messages |
+| `proactiveChannel` | auto | Override channel for proactive messages |
+| `proactiveTarget` | auto | Override target (auto-learned from first message) |
+| `workspaceFiles` | `["SOUL.md","AGENTS.md","MEMORY.md","USER.md"]` | Files to load as workspace context |
+| `llm` | auto | Override LLM config (auto-detected from OpenClaw) |
 
 ### Environment Variables
 
