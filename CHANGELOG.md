@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.2.0 (2026-04-18)
+
+### Changes
+
+- **Context-aware LLM priority re-ranking**: Soul now uses an LLM call to dynamically re-rank thought action priorities based on conversation context, time of day, and recent action history. Instead of always picking the highest static-priority action, Soul considers what is most valuable right now (e.g., boost proactive-research when user mentions travel, boost observe-and-improve during debugging, avoid repeating the same action type)
+- **File-based sub-agent result capture**: observe-and-improve and run-agent-task sub-agents now write results to a known file path (`/tmp/soul-results/{taskId}.md`). pollActiveTasks reads these files and populates the task result, enabling report-findings to deliver actual findings to users instead of generic timeout messages
+
+### Fixes
+
+- **Prevent thought cycle busy-loops**: Added exponential backoff (2min × consecutive skips, max 30min) when all thought opportunities are skipped. Previously Soul could loop every tick minute doing nothing, wasting LLM tokens
+- **Narrow diagnosticKeywords override**: Broad regex matching "观察"/"检查"/"分析" was overriding ~70% of actions to analyze-problem. Now only matches explicit debug intent (排查.*问题, debug, fix.*issue, etc.) and protects proactive-research, proactive-content-push, and observe-and-improve from override
+- **Allow non-duplicate send-message when previous is pending**: Only blocks duplicate messages when the previous proactive message is still pending, not all sends. Pending timeout now scales with thoughtFrequency
+- **Correct soulWebSearch return type**: Fixed `searchResult.results` on a direct array — now correctly accesses the array directly
+- **Fix addSoulMemoryToEgo import error**: Removed erroneous import from soul-actions.js (function is defined locally in action-executor.ts)
+- **Fix isSelfImprovementAction undefined reference**: Renamed to isProtectedAction but one call site was missed
+- **Shorten proactive action dedup windows**: proactive-research dedup 24h→6h, proactive-content-push dedup 12h→4h, so these actions can trigger more often
+- **Recall-memory sends actionable reflections**: When recall-memory surfaces a memory containing actionable intent (应该/可以/I should/let me), Soul now proactively shares it with the user
+- **Filter Soul's own proactive messages from context**: Soul's proactive outbound messages are no longer included in conversation-replay analysis, preventing self-referential thought loops
+
 ## 2.1.0 (2026-04-17)
 
 ### Changes
