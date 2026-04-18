@@ -92,12 +92,14 @@ Soul remembers your conversations, preferences, and knowledge:
 ### 1. Install
 
 ```bash
-# From ClawHub (recommended)
-openclaw plugins install clawhub:openclaw-soul-plugin
-
-# Or from source
 git clone https://github.com/tommyguolin/openclaw-soul.git
 openclaw plugins install ./openclaw-soul
+```
+
+Or install from ClawHub:
+
+```bash
+openclaw plugins install clawhub:openclaw-soul-plugin
 ```
 
 ### 2. Configure
